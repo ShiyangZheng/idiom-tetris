@@ -49,9 +49,15 @@ The pool is embedded directly in `index.html`, so the game runs from
 When you die, a modal pops up with two options:
 
 - **Share screenshot** — renders the full page to a PNG via
-  html2canvas. On mobile this opens the native share sheet
-  (WeChat / X / Instagram / LinkedIn / Messages); on desktop
-  it downloads the PNG for you to post manually.
+  html2canvas, then hands it to the **native OS share sheet**
+  with `navigator.share({title, text, url, files})`. The system
+  sheet auto-lists every installed app that accepts the share
+  extension, so on iOS / macOS / Android you'll see WeChat,
+  X, Instagram, LinkedIn, Messages, Mail, etc. without any
+  per-platform code. Browsers that don't support file sharing
+  still get a text+link share through the same sheet; the
+  rare browser with no share-sheet support at all just
+  downloads the PNG for you to post manually.
 - **Skip** — close the modal.
 
 The game keeps no record of your score — it lives only in the
@@ -221,9 +227,9 @@ playable sessions but the pedagogical logic is ad hoc:
   mass. A motivated learner who wants to drill the bottom
   10% (rare idioms) has no way to ask for that.
 - **No measurement of what is being learned.** The game tracks
-  score, clears, and level. It does not track which idioms
-  the player *missed* (placed a tile that didn't form a
-  cluster), reaction times, or transfer to a post-test.
+  score and clears. It does not track which idioms the player
+  *missed* (placed a tile that didn't form a cluster), reaction
+  times, or transfer to a post-test.
 
 I have thoughts on each of these but no conviction. If you are
 a learning scientist, an HCI researcher, an applied linguist

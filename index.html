@@ -430,10 +430,6 @@
     </div>
 
     <aside class="side-col right" aria-label="Game info (right)">
-      <div class="mini-stat">
-        <div class="mini-label">Level</div>
-        <div class="mini-val" id="stat-level">1</div>
-      </div>
       <div class="mini-stat legend-mini">
         <div class="mini-label">Types</div>
         <div class="legend-row">
@@ -467,7 +463,6 @@
       <div class="final-stats">
         <div><span class="lbl">Score</span><span class="val" id="final-score">0</span></div>
         <div><span class="lbl">Cleared</span><span class="val" id="final-cleared">0</span></div>
-        <div><span class="lbl">Level</span><span class="val" id="final-level">1</span></div>
       </div>
       <div class="modal-actions">
         <button id="btn-share" class="btn-primary">Share screenshot</button>
@@ -1167,7 +1162,8 @@ function clearIdiomAt(cx, cy, positions, key) {
       if (cleared % 8 === 0) {
         level += 1;
         dropInterval = Math.max(150, 800 - (level - 1) * 70);
-        $('stat-level').textContent = level;
+        /* level is no longer shown in the UI (intentional), but the
+         * internal counter still drives the difficulty curve. */
       }
       draw();
       /* Chain: scan the locked cell's column too */
@@ -1537,7 +1533,6 @@ function restart() {
   /* stat-lines is intentionally absent from the redesigned mini
    * side panel — guard the lookup so restart() doesn't crash. */
   if ($('stat-lines')) $('stat-lines').textContent = '0';
-  $('stat-level').textContent = '1';
   $('status').textContent = 'playing';
   /* stat-lines is intentionally absent from the redesigned mini
    * side panel — guard the lookup so restart() doesn't crash. */
@@ -1644,7 +1639,6 @@ function initModals() {
 function onGameOver() {
   $('final-score').textContent   = score.toLocaleString();
   $('final-cleared').textContent = cleared;
-  $('final-level').textContent   = level;
   $('share-status').textContent  = '';
   $('share-status').className    = 'share-status';
   showModal('gameover-modal');
@@ -1652,8 +1646,20 @@ function onGameOver() {
 
 /* ---------- Share screenshot ----------
  * Use html2canvas to render the whole <body> into a PNG, then
- * either call navigator.share() (mobile) or download the file
- * directly (desktop). */
+ * hand it to the OS share sheet via navigator.share(). The system
+ * share sheet on iOS / macOS / Android automatically lists every
+ * installed app that accepts the share extension — WeChat, X
+ * (Twitter), Instagram, LinkedIn, Messages, Mail, etc. — so we
+ * don't need to wire up each platform individually.
+ *
+ * Layered fallbacks:
+ *   1. canShare({files})    — full share: image + text + url
+ *   2. navigator.share      — text + url (no image), still routes
+ *                             through the system share sheet
+ *   3. PNG download         — last resort for browsers without
+ *                             any share-sheet support
+ */
+const SHARE_URL = 'https://shiyangzheng.top/idiom-tetris/';
 async function onShareScreenshot() {
   const status = $('share-status');
   const btn   = $('btn-share');
@@ -1679,12 +1685,21 @@ async function onShareScreenshot() {
     if (!blob) throw new Error('canvas.toBlob produced no PNG');
     const file = new File([blob], `idiom-tetris-${Date.now()}.png`, { type: 'image/png' });
 
-    /* Mobile (and modern desktop with Web Share Target): native share sheet */
+    const shareText =
+      `I scored ${score.toLocaleString()} in Idiom Tetris! ` +
+      `Cleared ${cleared} idioms. Can you beat it?`;
+    const shareTitle = 'Idiom Tetris';
+
+    /* 1. Full share: image + text + url (if the platform can
+     *    share files). iOS / macOS Safari, Chrome on Android, etc.
+     *    The receiving app gets both the image and the context
+     *    (text + link back to the game). */
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
-          title: 'Idiom Tetris',
-          text:  `I scored ${score} in Idiom Tetris!`,
+          title: shareTitle,
+          text:  shareText,
+          url:   SHARE_URL,
           files: [file],
         });
         status.textContent = 'Shared!';
@@ -1702,8 +1717,35 @@ async function onShareScreenshot() {
       }
       return;
     }
-    /* No native share-sheet support (older desktop browsers):
-     * download the PNG so the user can post it manually. */
+
+    /* 2. Text-only share via the system share sheet. Works on
+     *    browsers that support navigator.share but not file
+     *    sharing. The system sheet still lists WeChat / X / IG /
+     *    LinkedIn / Messages — the user just pastes the screenshot
+     *    manually in the receiving app. */
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text:  shareText,
+          url:   SHARE_URL,
+        });
+        status.textContent = 'Shared! (Add the screenshot in the app)';
+        status.className = 'share-status ok';
+      } catch (e) {
+        if (e && (e.name === 'AbortError' || /cancel/i.test(e.message || ''))) {
+          status.textContent = 'Share canceled.';
+          status.className = 'share-status';
+        } else {
+          throw e;
+        }
+      }
+      return;
+    }
+
+    /* 3. No share-sheet support at all (rare older desktop
+     *    browsers): download the PNG so the user can post it
+     *    manually. */
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

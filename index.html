@@ -140,6 +140,25 @@
     margin-top: 4px;
   }
   .restart-mini:hover { opacity: 0.9; }
+  .toggle-mini {
+    background: #1a1d2b;
+    color: var(--text);
+    border: 1px solid #2a2e3f;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 4px;
+    font-family: inherit;
+  }
+  .toggle-mini[aria-pressed="true"] {
+    background: var(--accent);
+    color: #1a1d2b;
+    border-color: var(--accent);
+  }
+  .toggle-mini:hover { opacity: 0.85; }
   .status-mini {
     text-align: center;
     font-size: 11px;
@@ -521,6 +540,9 @@
           <kbd>P</kbd>
         </div>
       </div>
+      <button id="toggle-random-spawn" class="toggle-mini" aria-pressed="false" title="Randomize where each new block lands">
+        🎲 Spawn: <span id="spawn-mode-label">center</span>
+      </button>
       <button id="restart" class="restart-mini">Restart</button>
       <div class="status-mini"><span id="status">playing</span></div>
     </aside>
@@ -989,10 +1011,25 @@ function newPiece() {
  * Promote `next` -> `current`, generate a new `next`, repaint
  * the side preview, and check whether the new piece is already
  * colliding (in which case it's game over).
+ *
+ * When `window.__RANDOM_SPAWN_X__` is true, each new piece gets a
+ * uniformly random x in [0, COLS-1] instead of always spawning at
+ * x=3 (top-center). This makes the game much more chaotic because
+ * the player can't choose where the next block lands — they have to
+ * react to it. Toggle via the right-side panel button.
  */
 function spawnNext() {
   current = next || newPiece();
   next = newPiece();
+  if (window.__RANDOM_SPAWN_X__) {
+    /* Uniform random column; re-roll if the column would overlap
+     * the top row (avoids instant game-over from unlucky spawns). */
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const candidate = Math.floor(Math.random() * COLS);
+      const probe = { ...next, x: candidate, y: 0 };
+      if (!collides(probe, 0, 0)) { next.x = candidate; break; }
+    }
+  }
   drawNext();
   if (collides(current, 0, 0)) {
     gameOver = true;
@@ -1615,6 +1652,11 @@ document.addEventListener('keydown', (e) => {
  * after the idiom pool has loaded.
  */
 $('restart').addEventListener('click', restart);
+$('toggle-random-spawn').addEventListener('click', () => {
+  window.__RANDOM_SPAWN_X__ = !window.__RANDOM_SPAWN_X__;
+  applySpawnMode();
+});
+applySpawnMode();
 
 function restart() {
   grid = makeGrid();
@@ -1636,6 +1678,19 @@ function restart() {
   next = newPiece();
   spawnNext();
   drawNext();
+}
+
+/* Random-spawn toggle: defaults OFF (top-center) so the game is
+ * still learnable. Click the 🎲 button to switch on, and every
+ * new block lands in a uniformly random column (re-rolled up to 6
+ * times if it would overlap the top row). */
+window.__RANDOM_SPAWN_X__ = false;
+function applySpawnMode() {
+  $('spawn-mode-label').textContent = window.__RANDOM_SPAWN_X__ ? 'random' : 'center';
+  $('toggle-random-spawn').setAttribute('aria-pressed', window.__RANDOM_SPAWN_X__ ? 'true' : 'false');
+  $('toggle-random-spawn').title = window.__RANDOM_SPAWN_X__
+    ? 'Each new block lands in a random column. Click to switch back to top-center spawn.'
+    : 'Each new block lands at the top-center. Click to randomize where blocks land.';
 }
 
 /* ---------- Boot ----------

@@ -238,7 +238,7 @@ paper, or RA project would be:
 > the BNC frequency gradient, (b) a player-performance model,
 > and (c) spaced retrieval."*
 
-I'm at the University of Nottingham, School of Education, and
+I'm at the University of Nottingham, School of English, and
 I'm funded by an ESRC studentship through 2028. Happy to
 co-author, share the pool, share the codebase, or co-supervise
 a small project.

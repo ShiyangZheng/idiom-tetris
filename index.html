@@ -345,31 +345,6 @@
     color: var(--text);
     font-variant-numeric: tabular-nums;
   }
-  .name-label {
-    display: block;
-    text-align: left;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-dim);
-    margin-bottom: 4px;
-  }
-  #player-name {
-    width: 100%;
-    box-sizing: border-box;
-    background: #1a1d2b;
-    border: 1px solid #2a2e3f;
-    color: var(--text);
-    padding: 8px 10px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-family: inherit;
-    margin-bottom: 16px;
-  }
-  #player-name:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
   .modal-actions {
     display: flex;
     flex-direction: column;
@@ -408,70 +383,6 @@
   .share-status.ok { color: var(--clear); }
   .share-status.err { color: #ef4444; }
 
-  /* ---------- Leaderboard ---------- */
-  .leaderboard-fab {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    border: none;
-    background: var(--accent);
-    color: #1a1d2b;
-    font-size: 22px;
-    cursor: pointer;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    z-index: 999;
-    transition: transform 0.15s ease;
-  }
-  .leaderboard-fab:hover { transform: scale(1.08); }
-  .leaderboard-card {
-    min-width: 360px;
-    text-align: left;
-  }
-  .leaderboard-source {
-    display: flex;
-    gap: 16px;
-    margin-bottom: 12px;
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-  .leaderboard-source label {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    cursor: pointer;
-  }
-  .leaderboard-list {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 16px 0;
-    max-height: 50vh;
-    overflow-y: auto;
-    font-size: 13px;
-  }
-  .leaderboard-list li {
-    display: grid;
-    grid-template-columns: 28px 1fr auto auto;
-    gap: 8px;
-    padding: 6px 8px;
-    border-bottom: 1px solid #1a1d2b;
-    align-items: center;
-  }
-  .leaderboard-list li.gold   .rank { color: #fbbf24; font-weight: 700; }
-  .leaderboard-list li.silver .rank { color: #cbd5e1; font-weight: 700; }
-  .leaderboard-list li.bronze .rank { color: #f59e0b; font-weight: 700; }
-  .leaderboard-list .rank { font-variant-numeric: tabular-nums; color: var(--text-dim); }
-  .leaderboard-list .name { color: var(--text); font-weight: 600; }
-  .leaderboard-list .score { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
-  .leaderboard-list .meta { color: var(--text-dim); font-size: 11px; }
-  .leaderboard-empty {
-    text-align: center;
-    color: var(--text-dim);
-    font-size: 13px;
-    padding: 20px 0;
-  }
 </style>
 <!-- ============================================================
      EMBEDDED IDIOM POOL
@@ -540,18 +451,15 @@
           <kbd>P</kbd>
         </div>
       </div>
-      <button id="toggle-random-spawn" class="toggle-mini" aria-pressed="false" title="Click to randomize where each new block lands">
-        <span id="spawn-mode-label">📍 Fixed</span>
-      </button>
       <button id="restart" class="restart-mini">Restart</button>
       <div class="status-mini"><span id="status">playing</span></div>
     </aside>
   </div>
 
   <!-- ============================================================
-       Game-over modal (hidden until gameOver flips). Prompts the
-       player for a name (optional), then offers Save to leaderboard
-       + Share to social. Renders above the board via z-index 1000.
+       Game-over modal (hidden until gameOver flips). Shows final
+       stats and offers Share to social + Skip. Renders above the
+       board via z-index 1000.
        ============================================================ -->
   <div id="gameover-modal" class="gameover-modal" hidden>
     <div class="gameover-card">
@@ -561,46 +469,13 @@
         <div><span class="lbl">Cleared</span><span class="val" id="final-cleared">0</span></div>
         <div><span class="lbl">Level</span><span class="val" id="final-level">1</span></div>
       </div>
-      <label class="name-label" for="player-name">Your name (optional)</label>
-      <input id="player-name" type="text" maxlength="20"
-             placeholder="Leave blank for Anonymous" autocomplete="off">
       <div class="modal-actions">
-        <button id="btn-save" class="btn-primary">Save to leaderboard</button>
-        <button id="btn-share" class="btn-secondary">Share screenshot</button>
+        <button id="btn-share" class="btn-primary">Share screenshot</button>
         <button id="btn-skip" class="btn-text">Skip</button>
       </div>
       <div id="share-status" class="share-status"></div>
     </div>
   </div>
-
-  <!-- ============================================================
-       Leaderboard modal (hidden by default). Shows top-10 scores
-       persisted in localStorage under 'idiom_tetris_leaderboard'.
-       ============================================================ -->
-  <div id="leaderboard-modal" class="gameover-modal" hidden>
-    <div class="gameover-card leaderboard-card">
-      <h2>Leaderboard</h2>
-      <div class="leaderboard-source">
-        <label>
-          <input type="radio" name="lb-src" value="local" checked>
-          <span>This browser</span>
-        </label>
-        <label>
-          <input type="radio" name="lb-src" value="github">
-          <span>Community (GitHub Issues)</span>
-        </label>
-      </div>
-      <ol id="leaderboard-list" class="leaderboard-list"></ol>
-      <div class="modal-actions">
-        <button id="btn-close-lb" class="btn-secondary">Close</button>
-        <button id="btn-clear-lb" class="btn-text">Clear local</button>
-      </div>
-    </div>
-  </div>
-
-  <button id="btn-leaderboard" class="leaderboard-fab" title="View leaderboard">
-    🏆
-  </button>
 
 <script>
 "use strict";
@@ -1012,23 +887,20 @@ function newPiece() {
  * the side preview, and check whether the new piece is already
  * colliding (in which case it's game over).
  *
- * When `window.__RANDOM_SPAWN_X__` is true, each new piece gets a
- * uniformly random x in [0, COLS-1] instead of always spawning at
- * x=3 (top-center). This makes the game much more chaotic because
- * the player can't choose where the next block lands — they have to
- * react to it. Toggle via the right-side panel button.
+ * Each new piece gets a uniformly random x in [0, COLS-1] instead
+ * of always spawning at x=3 (top-center). This makes the game much
+ * more chaotic because the player can't choose where the next block
+ * lands — they have to react to it. The column is re-rolled up to
+ * 6 times if it would overlap the top row (avoids instant
+ * game-over from unlucky spawns).
  */
 function spawnNext() {
   current = next || newPiece();
   next = newPiece();
-  if (window.__RANDOM_SPAWN_X__) {
-    /* Uniform random column; re-roll if the column would overlap
-     * the top row (avoids instant game-over from unlucky spawns). */
-    for (let attempt = 0; attempt < 6; attempt++) {
-      const candidate = Math.floor(Math.random() * COLS);
-      const probe = { ...next, x: candidate, y: 0 };
-      if (!collides(probe, 0, 0)) { next.x = candidate; break; }
-    }
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const candidate = Math.floor(Math.random() * COLS);
+    const probe = { ...next, x: candidate, y: 0 };
+    if (!collides(probe, 0, 0)) { next.x = candidate; break; }
   }
   drawNext();
   if (collides(current, 0, 0)) {
@@ -1652,11 +1524,6 @@ document.addEventListener('keydown', (e) => {
  * after the idiom pool has loaded.
  */
 $('restart').addEventListener('click', restart);
-$('toggle-random-spawn').addEventListener('click', () => {
-  window.__RANDOM_SPAWN_X__ = !window.__RANDOM_SPAWN_X__;
-  applySpawnMode();
-});
-applySpawnMode();
 
 function restart() {
   grid = makeGrid();
@@ -1680,19 +1547,6 @@ function restart() {
   drawNext();
 }
 
-/* Random-spawn toggle: defaults OFF (top-center) so the game is
- * still learnable. Click the 🎲 button to switch on, and every
- * new block lands in a uniformly random column (re-rolled up to 6
- * times if it would overlap the top row). */
-window.__RANDOM_SPAWN_X__ = false;
-function applySpawnMode() {
-  $('spawn-mode-label').textContent = window.__RANDOM_SPAWN_X__ ? '🎲 Random' : '📍 Fixed';
-  $('toggle-random-spawn').setAttribute('aria-pressed', window.__RANDOM_SPAWN_X__ ? 'true' : 'false');
-  $('toggle-random-spawn').title = window.__RANDOM_SPAWN_X__
-    ? 'Each new block lands in a random column. Click to switch back to top-center spawn.'
-    : 'Each new block lands at the top-center. Click to randomize where blocks land.';
-}
-
 /* ---------- Boot ----------
  * Top-level bootstrap. Load the idiom pool, reset state, paint
  * the first frame, then kick off the RAF loop. Errors are
@@ -1709,13 +1563,13 @@ loadPool().then(() => {
    * drawNext() no-ops (board is being painted by draw() anyway). */
   bootComplete = true;
   drawNext();        // paint the side panel now that `next` exists
-  /* initLeaderboard() is defined in the post-html2canvas <script>
+  /* initModals() is defined in the post-html2canvas <script>
    * block below. It's hoisted within its own block, but function
    * declarations are NOT hoisted across separate <script> tags, so
    * we have to wait until the bottom script has parsed. We use a
    * microtask to yield to the parser, then call it. */
   queueMicrotask(() => {
-    if (typeof initLeaderboard === 'function') initLeaderboard();
+    if (typeof initModals === 'function') initModals();
   });
   requestAnimationFrame(loop);
 }).catch(err => {
@@ -1735,216 +1589,31 @@ loadPool().then(() => {
 "use strict";
 
 /* ============================================================
- *  Leaderboard + share system
+ *  Game-over modal + share system
  *  ------------------------------------------------------------
- *  Storage
- *    - localStorage key 'idiom_tetris_leaderboard' (this browser)
- *    - GitHub Issues on ShiyangZheng/idiom-tetris (community-wide,
- *      no auth required to POST — anonymous is rate-limited but
- *      works for demos; see README for the trade-off).
- *
- *  Each entry:
- *    { name, score, cleared, level, ts }
- *      name:    string, 1-20 chars, "Anonymous-XXXX" if blank
- *      score:   int, final score
- *      cleared: int, idioms cleared
- *      level:   int, level reached
- *      ts:      epoch millis
- *
- *  Ranking
- *    Sorted by score desc, then by ts asc (earlier wins ties).
+ *  When the game ends, a modal pops up showing the final score
+ *  and offering Share-to-screenshot (via html2canvas). There is
+ *  no leaderboard — the player is in charge of where their score
+ *  lives, and we don't persist anything in localStorage.
  *  ============================================================ */
-const LB_KEY       = 'idiom_tetris_leaderboard';
-const GH_REPO      = 'ShiyangZheng/idiom-tetris';
-const GH_ISSUES    = `https://api.github.com/repos/${GH_REPO}/issues`;
-const GH_PAGE_SIZE = 100;     // GitHub max per page
-const GH_LABEL     = 'leaderboard';  // auto-tagged filter
-
-/**
- * Generate a 4-digit Anonymous suffix from crypto-safe RNG when
- * available, falling back to Math.random. The dash before the
- * digits makes it visually obvious these aren't real names.
- */
-function anonName() {
-  let n;
-  if (window.crypto && crypto.getRandomValues) {
-    n = new Uint32Array(1);
-    crypto.getRandomValues(n);
-    n = n[0] % 10000;
-  } else {
-    n = Math.floor(Math.random() * 10000);
-  }
-  return 'Anon-' + String(n).padStart(4, '0');
-}
-
-/**
- * Read the local leaderboard array. Always returns an array (never
- * null) — if the key is missing or corrupted we start fresh.
- */
-function readLocalLB() {
-  try {
-    const raw = localStorage.getItem(LB_KEY);
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function writeLocalLB(arr) {
-  try {
-    localStorage.setItem(LB_KEY, JSON.stringify(arr));
-  } catch (e) {
-    /* localStorage may be disabled in private mode — fail silently */
-  }
-}
-
-/**
- * Push a new entry, sort by score desc, cap at top 50 so the JSON
- * blob never grows unboundedly across hundreds of games.
- */
-function pushLocalLB(entry) {
-  const arr = readLocalLB();
-  arr.push(entry);
-  arr.sort((a, b) => (b.score - a.score) || (a.ts - b.ts));
-  if (arr.length > 50) arr.length = 50;
-  writeLocalLB(arr);
-  return arr;
-}
-
-/**
- * Fetch community leaderboard from GitHub Issues. Each issue body
- * is a fenced JSON code block:
- *   ```json
- *   {"name":"x","score":1200,"cleared":12,"level":3,"ts":...}
- *   ```
- * Filter on label so random bug reports don't pollute results.
- * On any network failure returns an empty array (the UI shows a
- * "could not load" notice).
- */
-async function fetchCommunityLB() {
-  try {
-    const res = await fetch(`${GH_ISSUES}?labels=${GH_LABEL}&state=all&per_page=${GH_PAGE_SIZE}`);
-    if (!res.ok) return [];
-    const issues = await res.json();
-    const out = [];
-    for (const iss of issues) {
-      const m = (iss.body || '').match(/```json\s*([\s\S]+?)\s*```/);
-      if (!m) continue;
-      try {
-        const obj = JSON.parse(m[1]);
-        if (typeof obj.score === 'number') {
-          out.push({
-            name:    String(obj.name || 'Anon').slice(0, 20),
-            score:   obj.score,
-            cleared: obj.cleared | 0,
-            level:   obj.level | 0,
-            ts:      obj.ts || Date.parse(iss.created_at) || 0,
-            url:     iss.html_url,
-          });
-        }
-      } catch (e) { /* skip malformed */ }
-    }
-    out.sort((a, b) => (b.score - a.score) || (a.ts - b.ts));
-    return out;
-  } catch (e) {
-    return [];
-  }
-}
-
-/**
- * Submit a score to the community leaderboard. We POST a new GitHub
- * Issue whose body is a JSON code block. GitHub's anonymous POST
- * limit is 60/hr per IP — for a real deployment you'd add a PAT.
- * Returns { ok, url, error }.
- */
-async function submitCommunityLB(entry) {
-  try {
-    const body =
-`Anonymous score submission for the Idiom Tetris leaderboard.
-
-\`\`\`json
-${JSON.stringify(entry)}
-\`\`\`
-
-<sub>Submitted via the in-game "Save to leaderboard" button. `
-      + `Edit the issue title to set a display name; the JSON block is what the app reads.</sub>`;
-    const res = await fetch(GH_ISSUES, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' },
-      body:    JSON.stringify({
-        title: `lb: ${entry.name} — ${entry.score}`,
-        body,
-        labels: [GH_LABEL],
-      }),
-    });
-    if (!res.ok) {
-      return { ok: false, error: `HTTP ${res.status}` };
-    }
-    const iss = await res.json();
-    return { ok: true, url: iss.html_url };
-  } catch (e) {
-    return { ok: false, error: String(e) };
-  }
-}
 
 /* ---------- Modal control ----------
  * showModal/hideModal just flip the [hidden] attribute. We also
- * pause/unpause the game so the board freezes while the player
- * types a name. */
+ * pause/unpause the game so the board freezes while the modal
+ * is open. */
 let _pausedBeforeModal = false;
 function showModal(id) {
   _pausedBeforeModal = paused;
   paused = true;
   $(id).hidden = false;
-  /* Focus the name input if it's the game-over modal */
-  if (id === 'gameover-modal') {
-    setTimeout(() => $('player-name').focus(), 50);
-  }
 }
 function hideModal(id) {
   $(id).hidden = true;
   paused = _pausedBeforeModal;
 }
 
-/* ---------- Render leaderboard list ----------
- * Takes an array of entries, sorts, slices top 10, and writes
- * rows into the <ol>. The first three rows get medal classes. */
-function renderLeaderboard(entries, target) {
-  target.innerHTML = '';
-  const top = entries.slice(0, 10);
-  if (top.length === 0) {
-    const li = document.createElement('li');
-    li.className = 'leaderboard-empty';
-    li.textContent = 'No scores yet — play a round!';
-    target.appendChild(li);
-    return;
-  }
-  top.forEach((e, i) => {
-    const li = document.createElement('li');
-    if (i === 0) li.className = 'gold';
-    else if (i === 1) li.className = 'silver';
-    else if (i === 2) li.className = 'bronze';
-    const date = new Date(e.ts).toLocaleDateString();
-    li.innerHTML = `
-      <span class="rank">#${i + 1}</span>
-      <span class="name">${escapeHtml(e.name)}</span>
-      <span class="score">${e.score.toLocaleString()}</span>
-      <span class="meta">L${e.level} · ${date}</span>
-    `;
-    target.appendChild(li);
-  });
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
-}
-
-/* ---------- Boot: wire modal + FAB + buttons ---------- */
-function initLeaderboard() {
+/* ---------- Boot: wire game-over modal + buttons ---------- */
+function initModals() {
   /* Game over → open modal. We hook into the existing status
    * element via a MutationObserver since loop() is the only place
    * that flips it to GAME OVER. */
@@ -1959,72 +1628,19 @@ function initLeaderboard() {
   }).observe(statusEl, { childList: true, subtree: true, characterData: true });
 
   /* Modal buttons */
-  $('btn-save').addEventListener('click', onSaveScore);
   $('btn-share').addEventListener('click', onShareScreenshot);
   $('btn-skip').addEventListener('click', () => hideModal('gameover-modal'));
-  $('player-name').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') onSaveScore();
-  });
-
-  /* Leaderboard modal */
-  $('btn-leaderboard').addEventListener('click', openLeaderboard);
-  $('btn-close-lb').addEventListener('click', () => hideModal('leaderboard-modal'));
-  $('btn-clear-lb').addEventListener('click', () => {
-    if (confirm('Clear all locally-stored scores?')) {
-      localStorage.removeItem(LB_KEY);
-      openLeaderboard();
-    }
-  });
-  document.querySelectorAll('input[name="lb-src"]').forEach(r => {
-    r.addEventListener('change', openLeaderboard);
-  });
 }
 
 /* ---------- Game over hook ----------
- * Build the entry, populate the modal, and show it. */
-let _pendingEntry = null;
+ * Populate the final-stats display and show the modal. */
 function onGameOver() {
-  const name = anonName();
-  _pendingEntry = {
-    name,
-    score,
-    cleared,
-    level,
-    ts: Date.now(),
-  };
   $('final-score').textContent   = score.toLocaleString();
   $('final-cleared').textContent = cleared;
   $('final-level').textContent   = level;
-  $('player-name').value         = '';
   $('share-status').textContent  = '';
   $('share-status').className    = 'share-status';
   showModal('gameover-modal');
-}
-
-/* ---------- Save score (local + community) ---------- */
-async function onSaveScore() {
-  if (!_pendingEntry) return;
-  /* Update name if the user typed one */
-  const typed = $('player-name').value.trim();
-  _pendingEntry.name = typed ? typed.slice(0, 20) : anonName();
-
-  /* Save locally first — this always works */
-  pushLocalLB(_pendingEntry);
-
-  /* Then try the community submission */
-  const status = $('share-status');
-  status.textContent = 'Submitting to community leaderboard…';
-  status.className = 'share-status';
-  const res = await submitCommunityLB(_pendingEntry);
-  if (res.ok) {
-    status.innerHTML = `Saved locally + <a href="${res.url}" target="_blank" rel="noopener" style="color:var(--accent)">posted to GitHub</a>.`;
-    status.className = 'share-status ok';
-  } else {
-    status.textContent = `Saved locally (GitHub POST failed: ${res.error}).`;
-    status.className = 'share-status err';
-  }
-  /* Refresh the entry so a second click doesn't double-submit */
-  _pendingEntry = { ..._pendingEntry };
 }
 
 /* ---------- Share screenshot ----------
@@ -2053,7 +1669,7 @@ async function onShareScreenshot() {
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({
         title: 'Idiom Tetris',
-        text:  `I scored ${_pendingEntry ? _pendingEntry.score : 0} in Idiom Tetris!`,
+        text:  `I scored ${score} in Idiom Tetris!`,
         files: [file],
       });
       status.textContent = 'Shared!';
@@ -2075,26 +1691,6 @@ async function onShareScreenshot() {
     status.textContent = 'Share failed: ' + e.message;
     status.className = 'share-status err';
   }
-}
-
-/* ---------- Open leaderboard ----------
- * Reads the current source radio and renders. */
-async function openLeaderboard() {
-  const src = document.querySelector('input[name="lb-src"]:checked').value;
-  const list = $('leaderboard-list');
-  list.innerHTML = '<li class="leaderboard-empty">Loading…</li>';
-  showModal('leaderboard-modal');
-  let entries;
-  if (src === 'local') {
-    entries = readLocalLB();
-  } else {
-    entries = await fetchCommunityLB();
-    if (entries.length === 0) {
-      list.innerHTML = '<li class="leaderboard-empty">No community scores yet — be the first!</li>';
-      return;
-    }
-  }
-  renderLeaderboard(entries, list);
 }
 </script>
 </body>

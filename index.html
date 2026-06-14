@@ -540,8 +540,8 @@
           <kbd>P</kbd>
         </div>
       </div>
-      <button id="toggle-random-spawn" class="toggle-mini" aria-pressed="false" title="Randomize where each new block lands">
-        🎲 Spawn: <span id="spawn-mode-label">center</span>
+      <button id="toggle-random-spawn" class="toggle-mini" aria-pressed="false" title="Click to randomize where each new block lands">
+        <span id="spawn-mode-label">📍 Fixed</span>
       </button>
       <button id="restart" class="restart-mini">Restart</button>
       <div class="status-mini"><span id="status">playing</span></div>
@@ -1686,7 +1686,7 @@ function restart() {
  * times if it would overlap the top row). */
 window.__RANDOM_SPAWN_X__ = false;
 function applySpawnMode() {
-  $('spawn-mode-label').textContent = window.__RANDOM_SPAWN_X__ ? 'random' : 'center';
+  $('spawn-mode-label').textContent = window.__RANDOM_SPAWN_X__ ? '🎲 Random' : '📍 Fixed';
   $('toggle-random-spawn').setAttribute('aria-pressed', window.__RANDOM_SPAWN_X__ ? 'true' : 'false');
   $('toggle-random-spawn').title = window.__RANDOM_SPAWN_X__
     ? 'Each new block lands in a random column. Click to switch back to top-center spawn.'

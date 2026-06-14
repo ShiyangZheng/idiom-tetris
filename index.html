@@ -1564,13 +1564,20 @@ loadPool().then(() => {
   bootComplete = true;
   drawNext();        // paint the side panel now that `next` exists
   /* initModals() is defined in the post-html2canvas <script>
-   * block below. It's hoisted within its own block, but function
-   * declarations are NOT hoisted across separate <script> tags, so
-   * we have to wait until the bottom script has parsed. We use a
-   * microtask to yield to the parser, then call it. */
-  queueMicrotask(() => {
+   * block below. Function declarations are NOT hoisted across
+   * separate <script> tags — the second <script> hasn't parsed
+   * yet when this callback runs, so `initModals` is still
+   * `undefined` here. Wait for `DOMContentLoaded`, which fires
+   * after every <script> in the document has been parsed. */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof initModals === 'function') initModals();
+    }, { once: true });
+  } else {
+    /* The DOM is already parsed (e.g. the bottom <script> ran
+     * before us via ordering weirdness) — call it now. */
     if (typeof initModals === 'function') initModals();
-  });
+  }
   requestAnimationFrame(loop);
 }).catch(err => {
   console.error('boot failed:', err);

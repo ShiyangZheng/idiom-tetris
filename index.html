@@ -1656,11 +1656,16 @@ function onGameOver() {
  * directly (desktop). */
 async function onShareScreenshot() {
   const status = $('share-status');
+  const btn   = $('btn-share');
   if (typeof html2canvas === 'undefined') {
     status.textContent = 'html2canvas failed to load — check network.';
     status.className = 'share-status err';
     return;
   }
+  /* Guard against double-clicks while we're still rendering or
+   * waiting on the OS share sheet. Re-enable in finally. */
+  if (btn.disabled) return;
+  btn.disabled = true;
   status.textContent = 'Rendering screenshot…';
   status.className = 'share-status';
   try {
@@ -1669,21 +1674,36 @@ async function onShareScreenshot() {
       scale: 2,  // retina
       logging: false,
     });
+    if (!canvas) throw new Error('html2canvas returned an empty canvas');
     const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    if (!blob) throw new Error('canvas.toBlob produced no PNG');
     const file = new File([blob], `idiom-tetris-${Date.now()}.png`, { type: 'image/png' });
 
-    /* Mobile: native share sheet */
+    /* Mobile (and modern desktop with Web Share Target): native share sheet */
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        title: 'Idiom Tetris',
-        text:  `I scored ${score} in Idiom Tetris!`,
-        files: [file],
-      });
-      status.textContent = 'Shared!';
-      status.className = 'share-status ok';
+      try {
+        await navigator.share({
+          title: 'Idiom Tetris',
+          text:  `I scored ${score} in Idiom Tetris!`,
+          files: [file],
+        });
+        status.textContent = 'Shared!';
+        status.className = 'share-status ok';
+      } catch (e) {
+        /* The OS share sheet is dismissable — a user-initiated
+         * cancel is NOT a failure, it's the expected way to back
+         * out. Don't paint that as a red error. */
+        if (e && (e.name === 'AbortError' || /cancel/i.test(e.message || ''))) {
+          status.textContent = 'Share canceled.';
+          status.className = 'share-status';  /* neutral, not err */
+        } else {
+          throw e;  /* re-raise for the outer catch */
+        }
+      }
       return;
     }
-    /* Desktop: download + copy-to-clipboard fallback */
+    /* No native share-sheet support (older desktop browsers):
+     * download the PNG so the user can post it manually. */
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1695,8 +1715,10 @@ async function onShareScreenshot() {
     status.textContent = 'Downloaded! Post it to X, LinkedIn, WeChat, Instagram…';
     status.className = 'share-status ok';
   } catch (e) {
-    status.textContent = 'Share failed: ' + e.message;
+    status.textContent = 'Share failed: ' + (e && e.message ? e.message : e);
     status.className = 'share-status err';
+  } finally {
+    btn.disabled = false;
   }
 }
 </script>

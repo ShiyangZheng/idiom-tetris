@@ -44,26 +44,19 @@ python3 -m http.server 8765
 The pool is embedded directly in `index.html`, so the game runs from
 `file://` with no static server.
 
-### Leaderboard & sharing
+### Game over & sharing
 
-When you die, a modal pops up with three options:
+When you die, a modal pops up with two options:
 
-- **Save to leaderboard** — anonymously posts your score as a new
-  GitHub Issue on this repo (filtered by the `leaderboard` label,
-  no PAT required, rate-limited to ~60 posts/hr per IP). The
-  leaderboard is browsable via the 🏆 button (bottom-right) and
-  has two source modes: *This browser* (localStorage) and
-  *Community* (the GitHub Issues feed).
 - **Share screenshot** — renders the full page to a PNG via
   html2canvas. On mobile this opens the native share sheet
   (WeChat / X / Instagram / LinkedIn / Messages); on desktop
   it downloads the PNG for you to post manually.
-- **Skip** — close the modal without saving.
+- **Skip** — close the modal.
 
-Privacy: name is optional (defaults to `Anon-XXXX`); the score
-submission contains no IP, no user agent, no analytics. The
-GitHub Issue is publicly visible — by submitting, you consent
-to that visibility.
+The game keeps no record of your score — it lives only in the
+session that produced it. If you want a souvenir, the share
+button is the only way out.
 
 ---
 

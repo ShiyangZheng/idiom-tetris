@@ -1,0 +1,12 @@
+# Editor / OS scratch
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Build artifacts
+__pycache__/
+*.pyc
+
+# Local logs and notes
+*.log

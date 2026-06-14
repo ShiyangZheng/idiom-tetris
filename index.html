@@ -1,0 +1,1430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Idiom Tetris — V-det-N</title>
+<style>
+  /* ============================================================
+   *  CSS THEME
+   *  All colors live in :root as CSS custom properties so the
+   *  theme can be tweaked in one place. JS reads them at draw
+   *  time via getCss() (no caching, so DevTools edits apply
+   *  live).
+   *  ============================================================ */
+  :root {
+    --bg: #1a1d2b;        /* page background */
+    --grid-bg: #252a3d;   /* board background + idle cells */
+    --grid-line: #2f354a; /* gridline color */
+    --verb: #ff7eb3;      /* pink   — verb blocks (slightly desaturated for higher text contrast) */
+    --det:  #3fc9c0;      /* teal   — determiner blocks */
+    --noun: #ffc94d;      /* gold   — noun blocks */
+    --verb-shadow: #c94a85; /* deeper outline for verb cells */
+    --det-shadow:  #1f8a83; /* deeper outline for det cells */
+    --noun-shadow: #c98a1a; /* deeper outline for noun cells */
+    --text: #e6e8ef;      /* default foreground */
+    --text-dim: #9aa0b4;  /* secondary text (hints, sub-labels) */
+    --accent: #c084fc;    /* highlight color (badges) */
+    --clear: #10b981;     /* success color (cleared counter) */
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+    height: 100%;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    min-height: 100vh;
+  }
+  h1 {
+    margin: 0 0 4px 0;
+    font-size: 24px;
+    letter-spacing: 0.5px;
+  }
+  .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 12px; }
+  .layout {
+    display: flex;
+    gap: 32px;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+  }
+  .board-wrap {
+    position: relative;
+    background: var(--grid-bg);
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    /* board always fits the viewport — CELL is computed in JS, no scrollbars */
+  }
+  #board {
+    display: block;
+    background: var(--grid-bg);
+  }
+  .side-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100px;
+    flex: 0 0 100px;
+    align-items: center;
+    padding-top: 8px;
+  }
+  .mini-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .mini-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+  }
+  .mini-val {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .legend-row {
+    display: flex;
+    gap: 4px;
+  }
+  .legend-row .swatch {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+  }
+  .controls-mini .kbd-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 3px;
+    justify-items: center;
+    align-items: center;
+  }
+  .controls-mini .kbd-row kbd:nth-child(1) { grid-column: 2; grid-row: 1; } /* ↑   */
+  .controls-mini .kbd-row kbd:nth-child(2) { grid-column: 1; grid-row: 2; } /* ←   */
+  .controls-mini .kbd-row kbd:nth-child(3) { grid-column: 2; grid-row: 2; } /* ↓   */
+  .controls-mini .kbd-row kbd:nth-child(4) { grid-column: 3; grid-row: 2; } /* →   */
+  .controls-mini .kbd-row kbd:nth-child(5) { grid-column: 1; grid-row: 3; } /* ␣   */
+  .controls-mini .kbd-row kbd:nth-child(6) { grid-column: 3; grid-row: 3; } /* P   */
+  .controls-mini kbd {
+    background: #1a1d2b;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--text);
+    border: 1px solid #2a2e3f;
+  }
+  .restart-mini {
+    background: var(--accent);
+    color: #1a1d2b;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .restart-mini:hover { opacity: 0.9; }
+  .status-mini {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .panel {
+    background: var(--grid-bg);
+    border-radius: 8px;
+    padding: 10px 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .panel h3 {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+  }
+  .stat-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 14px; }
+  .stat-val { font-weight: 700; color: var(--accent); }
+  .legend { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .swatch {
+    display: inline-block; width: 14px; height: 14px;
+    border-radius: 3px; margin-right: 6px; vertical-align: middle;
+  }
+  .controls { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+  .controls kbd {
+    background: #1a1d2b; padding: 1px 6px; border-radius: 3px;
+    font-family: monospace; color: var(--text);
+  }
+  .toast-overlay {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.6);
+    pointer-events: none;
+    opacity: 0;
+    text-align: center;
+    background: rgba(26, 29, 43, 0.94);
+    border: 2px solid var(--clear);
+    border-radius: 12px;
+    padding: 20px 32px;
+    box-shadow: 0 0 60px rgba(16, 185, 129, 0.6);
+    min-width: 320px;
+    max-width: 480px;
+  }
+  .toast-overlay.show {
+    animation: toastPop 1.6s ease-out forwards;
+  }
+  @keyframes toastPop {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+    15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+    25%  { transform: translate(-50%, -50%) scale(1.0); }
+    80%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9) translateY(-30px); }
+  }
+  .toast-idiom {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--clear);
+    margin-bottom: 6px;
+  }
+  .toast-cn {
+    font-size: 16px;
+    color: #fef3c7;
+  }
+  .toast-en {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    font-style: italic;
+  }
+  button {
+    background: var(--accent);
+    color: #1a1d2b;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+  }
+  button:hover { opacity: 0.9; }
+  .gameover { color: #ef4444; font-weight: 700; }
+  .particle {
+    position: absolute;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  #next-canvas {
+    display: block;
+    margin: 4px auto 2px;
+    background: var(--bg);
+    border-radius: 6px;
+  }
+  .next-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .next-meta .type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #1a1d2b;
+  }
+  .next-meta .type-badge.verb { background: var(--verb); }
+  .next-meta .type-badge.det  { background: var(--det); }
+  .next-meta .type-badge.noun { background: var(--noun); }
+  .next-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+  .rule-hint {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.45;
+  }
+  .status-line {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+</style>
+<!-- ============================================================
+     EMBEDDED IDIOM POOL
+     This script tag is generated by the Python prebuild
+     (`build_pool.py`, see README.md) and inlines the idiom list
+     as window.__IDIOMS_POOL__ so the game runs from `file://`
+     without an HTTP server. The shape is:
+       { verbs:[], dets:[], nouns:[], lookup:{}, _ordered_keys:[] }
+     If you want to swap the pool out, you have three options:
+       1. Re-run the Python prebuild (regenerates this <script>).
+       2. Delete this <script> and let loadPool() fetch
+          idioms_compact.json from a static server instead.
+       3. Edit the pool by hand if you only need to add/remove
+          a handful of idioms.
+     ============================================================ -->
+<script>window.__IDIOMS_POOL__ = {"verbs": ["act", "bare", "be", "bear", "beat", "beg", "bend", "bide", "bite", "blaze", "blot", "blow", "break", "breathe", "bridge", "burn", "bury", "bust", "button", "buy", "call", "carry", "cast", "catch", "chance", "change", "chew", "choose", "clear", "clip", "close", "cock", "coin", "collect", "come", "concentrate", "connect", "control", "cook", "cool", "cop", "corner", "cost", "count", "cover", "crack", "cramp", "cross", "cut", "deliver", "die", "do", "drag", "draw", "drop", "drown", "earn", "eat", "enter", "escape", "excuse", "expose", "face", "fan", "fancy", "feather", "feel", "fight", "fill", "find", "fire", "fit", "flex", "flip", "fly", "foot", "force", "gather", "get", "gild", "gird", "give", "go", "grasp", "grease", "grit", "hate", "have", "hedge", "hit", "hitch", "hold", "jog", "jump", "keep", "kick", "knit", "know", "labor", "lay", "lead", "learn", "lend", "lick", "lift", "light", "line", "live", "look", "lose", "lower", "make", "mark", "meet", "mend", "mind", "miss", "move", "muddy", "mums", "name", "oil", "open", "overshoot", "overstep", "pack", "paint", "pass", "pave", "pay", "perish", "pick", "plant", "play", "point", "pop", "pour", "prepare", "press", "prime", "prolong", "pull", "puncture", "push", "queer", "rack", "raise", "rattle", "read", "rear", "recharge", "refresh", "return", "ride", "ring", "risk", "rock", "roll", "ruffle", "rule", "run", "save", "say", "scrape", "scratch", "seal", "search", "see", "sell", "serve", "set", "settle", "shake", "shift", "shoot", "show", "shut", "sign", "sing", "sink", "smell", "snap", "sound", "spare", "speak", "spend", "spike", "spill", "spin", "split", "spread", "spring", "square", "stake", "stand", "stay", "steal", "stem", "stick", "stir", "stop", "strengthen", "stretch", "strike", "sugar", "swallow", "sweep", "sweeten", "take", "tear", "tell", "test", "throw", "thumb", "tickle", "tie", "tighten", "tip", "toe", "toss", "touch", "tread", "try", "tug", "turn", "twist", "upset", "use", "walk", "waste", "watch", "wear", "weather", "weigh", "wet", "whet", "win", "wipe", "worth", "wring", "zip"], "dets": ["a", "a/the", "an", "my", "the", "your"], "nouns": ["ace", "act", "age", "agony", "air", "aitches", "alarm", "angles", "appetite", "applecart", "arm", "arse", "attitude", "bacon", "bags", "bait", "balance", "ball", "bank", "bar", "bargain", "barrel", "bash", "bath", "batteries", "beans", "bearings", "bell", "belt", "best", "bets", "bill", "bird", "biscuit", "bit", "blame", "blank", "blast", "blessings", "blood", "bluff", "blushes", "board", "boards", "boat", "boats", "bolt", "books", "boot", "boots", "bottle", "boundaries", "bowels", "brain", "brains", "break", "breast", "breath", "breeze", "brick", "bridges", "brows", "bubble", "buck", "bucket", "bug", "bullet", "bunk", "burn", "butcher", "button", "cackle", "cage", "cake", "can", "cards", "chances", "changes", "chase", "chord", "circle", "claim", "clanger", "clock", "cobwebs", "coin", "cold", "compliment", "conscience", "cool", "copybook", "cord", "corner", "cost", "course", "cover", "cow", "cradle", "crap", "credits", "cropper", "cross", "crowd", "curtain", "cut", "damnedest", "dash", "day", "deal", "death", "deck", "devil", "dice", "differences", "distance", "dive", "dots", "draught", "drift", "drink", "drum", "dust", "ear", "earth", "edge", "egg", "embers", "end", "envelope", "eye", "eyebrows", "eyes", "face", "facts", "faith", "fall", "fancy", "farm", "fat", "feathers", "feelings", "feet", "fence", "field", "fight", "finger", "fingernails", "fingers", "fire", "fist", "fit", "flag", "flames", "flesh", "fling", "floodgates", "floor", "focus", "fool", "forelock", "fort", "fortune", "french", "fuse", "gaff", "game", "gamut", "gap", "gauntlet", "goalposts", "goat", "goods", "goose", "grade", "grip", "ground", "groundwork", "guest", "gun", "guns", "gut", "guts", "habit", "hair", "halt", "hammer", "hand", "hands", "hatchet", "hay", "head", "headlines", "heart", "heartstrings", "heat", "heels", "helm", "hint", "homework", "honors", "horn", "horses", "hump", "ice", "idea", "imagination", "initiative", "iron", "issue", "jackpot", "job", "joke", "keep", "key", "killing", "kite", "knee", "knife", "knot", "landing", "laugh", "lead", "leak", "leap", "leg", "legs", "lemon", "lesson", "liberty", "lid", "lie", "life", "lift", "light", "lights", "lily", "limits", "line", "lions", "lip", "lips", "load", "loaf", "lock", "losses", "luck", "maker", "marbles", "mark", "market", "match", "meaning", "medicine", "memory", "message", "mickey", "mile", "mind", "mold", "moment", "moments", "mouth", "move", "muscles", "music", "mustard", "name", "neck", "needle", "nerve", "nest", "net", "nettle", "news", "nod", "notice", "number", "nut", "oats", "odds", "pace", "page", "palm", "pants", "part", "path", "peace", "penny", "phrase", "picture", "piece", "pile", "pill", "pinch", "piper", "piss", "pitch", "pits", "plank", "pledge", "plot", "plug", "plunge", "pocket", "pockets", "point", "pose", "praises", "pride", "pump", "punch", "punches", "purpose", "pursestrings", "push", "quarrel", "question", "queue", "rag", "raincheck", "rap", "raspberry", "rat", "record", "reins", "respects", "retreat", "ring", "risk", "road", "roof", "room", "roost", "ropes", "rot", "rounds", "rug", "rules", "runner", "running", "sack", "salt", "sauce", "scales", "scene", "score", "screw", "seed", "shark", "shirt", "shivers", "shoes", "shots", "show", "side", "sides", "sight", "sights", "silence", "situation", "skin", "slip", "smile", "snook", "sorrows", "soul", "source", "spell", "spirits", "splash", "sport", "spot", "spurs", "stage", "stakes", "stand", "step", "sting", "stone", "store", "storm", "strings", "stuff", "style", "subject", "sun", "surface", "switch", "tables", "talk", "tantrum", "tea", "teeth", "temperature", "thought", "throat", "tide", "tightrope", "time", "tone", "tongue", "top", "torch", "touch", "towel", "town", "tracks", "trail/path", "tree", "trick", "trigger", "trousers", "truth", "tune", "turn", "utmost", "vibe", "view", "voice", "void", "walk", "wall", "waterloo", "waters", "wave", "way", "ways", "weight", "wheel", "wheels", "whip", "whistle", "wings", "wits", "wobbly", "wool", "word", "words", "world", "worst", "wounds", "yarn"], "lookup": {"act|your|age": {"v": "act", "det": "your", "n": "age", "idiom": "act your age", "display": "act your age", "cn": "表现得成熟些；举止与年龄相称"}, "bare|your|soul": {"v": "bare", "det": "your", "n": "soul", "idiom": "bare your soul", "display": "bare your soul", "cn": "袒露心声；吐露心事"}, "be|a|devil": {"v": "be", "det": "a", "n": "devil", "idiom": "be a devil", "display": "be a devil", "cn": "放胆去做；冒险一试"}, "be|a|sport": {"v": "be", "det": "a", "n": "sport", "idiom": "be a sport", "display": "be a sport", "cn": "爽快一点；大气一些"}, "be|my|guest": {"v": "be", "det": "my", "n": "guest", "idiom": "be my guest", "display": "be my guest", "cn": "请便；请自便"}, "be|the|end": {"v": "be", "det": "the", "n": "end", "idiom": "be the end", "display": "be the end", "cn": "出类拔萃；登峰造极"}, "be|the|pits": {"v": "be", "det": "the", "n": "pits", "idiom": "be the pits", "display": "be the pits", "cn": "糟糕透顶；最差劲"}, "be|your|scene": {"v": "be", "det": "your", "n": "scene", "idiom": "be your scene", "display": "be your scene", "cn": "合你口味；对你胃口"}, "be|your|style": {"v": "be", "det": "your", "n": "style", "idiom": "be your style", "display": "be your style", "cn": "合你风格；正对你路数"}, "bear|your|cross": {"v": "bear", "det": "your", "n": "cross", "idiom": "bear your cross", "display": "bear your cross", "cn": "默默承受苦难；忍辱负重"}, "beat|a|retreat": {"v": "beat", "det": "a", "n": "retreat", "idiom": "beat a retreat", "display": "beat a retreat", "cn": "匆忙撤退；溜走"}, "beat|the|clock": {"v": "beat", "det": "the", "n": "clock", "idiom": "beat the clock", "display": "beat the clock", "cn": "抢在截止时间前完成"}, "beat|the|drum": {"v": "beat", "det": "the", "n": "drum", "idiom": "beat the drum", "display": "beat the drum", "cn": "大力鼓吹；为……摇旗呐喊"}, "beat|the|odds": {"v": "beat", "det": "the", "n": "odds", "idiom": "beat the odds", "display": "beat the odds", "cn": "战胜逆境；以弱胜强"}, "beat|the|path": {"v": "beat", "det": "the", "n": "path", "idiom": "beat the path", "display": "beat the path", "cn": "常走某条路；走出一条路"}, "beat|your|breast": {"v": "beat", "det": "your", "n": "breast", "idiom": "beat your breast", "display": "beat your breast", "cn": "捶胸顿足；深表痛悔"}, "beg|the|question": {"v": "beg", "det": "the", "n": "question", "idiom": "beg the question", "display": "beg the question", "cn": "回避问题实质；用待证问题作论据"}, "bend|the|knee": {"v": "bend", "det": "the", "n": "knee", "idiom": "bend the knee", "display": "bend the knee", "cn": "屈膝；屈服"}, "bend|the|rules": {"v": "bend", "det": "the", "n": "rules", "idiom": "bend the rules", "display": "bend the rules", "cn": "通融；变通处理规则"}, "bide|your|time": {"v": "bide", "det": "your", "n": "time", "idiom": "bide your time", "display": "bide your time", "cn": "等待时机；伺机而动"}, "bite|the|bullet": {"v": "bite", "det": "the", "n": "bullet", "idiom": "bite the bullet", "display": "bite the bullet", "cn": "硬着头皮；咬紧牙关"}, "bite|the|dust": {"v": "bite", "det": "the", "n": "dust", "idiom": "bite the dust", "display": "bite the dust", "cn": "失败；倒下"}, "bite|your|fingernails": {"v": "bite", "det": "your", "n": "fingernails", "idiom": "bite your fingernails", "display": "bite your fingernails", "cn": "紧张焦虑；坐立不安"}, "bite|your|lip": {"v": "bite", "det": "your", "n": "lip", "idiom": "bite your lip", "display": "bite your lip", "cn": "忍住不说；强压情绪"}, "bite|your|tongue": {"v": "bite", "det": "your", "n": "tongue", "idiom": "bite your tongue", "display": "bite your tongue", "cn": "忍住不说；保持沉默"}, "blaze|a/the|trail/path": {"v": "blaze", "det": "a/the", "n": "trail/path", "idiom": "blaze a/the trail/path", "display": "blaze a/the trail/path", "cn": "开创新路；做开路先锋"}, "blot|your|copybook": {"v": "blot", "det": "your", "n": "copybook", "idiom": "blot your copybook", "display": "blot your copybook", "cn": "败坏名声；失足"}, "blow|a|fuse": {"v": "blow", "det": "a", "n": "fuse", "idiom": "blow a fuse", "display": "blow a fuse", "cn": "勃然大怒；情绪失控"}, "blow|a|raspberry": {"v": "blow", "det": "a", "n": "raspberry", "idiom": "blow a raspberry", "display": "blow a raspberry", "cn": "发出嘲弄声；啧舌"}, "blow|the|cobwebs": {"v": "blow", "det": "the", "n": "cobwebs", "idiom": "blow the cobwebs", "display": "blow the cobwebs", "cn": "清醒头脑；焕然一新"}, "blow|the|gaff": {"v": "blow", "det": "the", "n": "gaff", "idiom": "blow the gaff", "display": "blow the gaff", "cn": "泄露秘密；揭穿底细"}, "blow|the|lid": {"v": "blow", "det": "the", "n": "lid", "idiom": "blow the lid", "display": "blow the lid", "cn": "揭穿黑幕；曝光"}, "blow|the|whistle": {"v": "blow", "det": "the", "n": "whistle", "idiom": "blow the whistle", "display": "blow the whistle", "cn": "举报；吹哨"}, "blow|your|cover": {"v": "blow", "det": "your", "n": "cover", "idiom": "blow your cover", "display": "blow your cover", "cn": "暴露身份；露馅"}, "blow|your|mind": {"v": "blow", "det": "your", "n": "mind", "idiom": "blow your mind", "display": "blow your mind", "cn": "令人震惊；大开眼界"}, "blow|your|top": {"v": "blow", "det": "your", "n": "top", "idiom": "blow your top", "display": "blow your top", "cn": "大发雷霆"}, "break|a|leg": {"v": "break", "det": "a", "n": "leg", "idiom": "break a leg", "display": "break a leg", "cn": "祝你好运（演出前常用）"}, "break|the|bank": {"v": "break", "det": "the", "n": "bank", "idiom": "break the bank", "display": "break the bank", "cn": "花大钱；倾囊"}, "break|the|ice": {"v": "break", "det": "the", "n": "ice", "idiom": "break the ice", "display": "break the ice", "cn": "打破僵局；活跃气氛"}, "break|the|mold": {"v": "break", "det": "the", "n": "mold", "idiom": "break the mold", "display": "break the mold", "cn": "打破常规；别出心裁"}, "break|the|news": {"v": "break", "det": "the", "n": "news", "idiom": "break the news", "display": "break the news", "cn": "透露消息；说出真相"}, "break|the|silence": {"v": "break", "det": "the", "n": "silence", "idiom": "break the silence", "display": "break the silence", "cn": "打破沉默"}, "break|the|spell": {"v": "break", "det": "the", "n": "spell", "idiom": "break the spell", "display": "break the spell", "cn": "解除魔咒；打破迷醉"}, "break|your|heart": {"v": "break", "det": "your", "n": "heart", "idiom": "break your heart", "display": "break your heart", "cn": "令人心碎"}, "break|your|words": {"v": "break", "det": "your", "n": "words", "idiom": "break your words", "display": "break your words", "cn": "食言；违背诺言"}, "breathe|a|word": {"v": "breathe", "det": "a", "n": "word", "idiom": "breathe a word", "display": "breathe a word", "cn": "泄露风声；透露"}, "bridge|the|gap": {"v": "bridge", "det": "the", "n": "gap", "idiom": "bridge the gap", "display": "bridge the gap", "cn": "弥合差距；消除隔阂"}, "burn|your|boats": {"v": "burn", "det": "your", "n": "boats", "idiom": "burn your boats", "display": "burn your boats", "cn": "破釜沉舟；不留退路"}, "burn|your|bridges": {"v": "burn", "det": "your", "n": "bridges", "idiom": "burn your bridges", "display": "burn your bridges", "cn": "自断后路；不留退路"}, "burn|your|fingers": {"v": "burn", "det": "your", "n": "fingers", "idiom": "burn your fingers", "display": "burn your fingers", "cn": "吃亏；碰钉子"}, "bury|the|hatchet": {"v": "bury", "det": "the", "n": "hatchet", "idiom": "bury the hatchet", "display": "bury the hatchet", "cn": "捐弃前嫌；握手言和"}, "bust|a|gut": {"v": "bust", "det": "a", "n": "gut", "idiom": "bust a gut", "display": "bust a gut", "cn": "拼命努力；竭尽全力"}, "bust|a|move": {"v": "bust", "det": "a", "n": "move", "idiom": "bust a move", "display": "bust a move", "cn": "动起来；开始行动"}, "button|your|lips": {"v": "button", "det": "your", "n": "lips", "idiom": "button your lips", "display": "button your lips", "cn": "闭嘴；别说话"}, "buy|a|lemon": {"v": "buy", "det": "a", "n": "lemon", "idiom": "buy a lemon", "display": "buy a lemon", "cn": "买到次品；上当"}, "buy|the|farm": {"v": "buy", "det": "the", "n": "farm", "idiom": "buy the farm", "display": "buy the farm", "cn": "一命呜呼（幽默委婉语）"}, "call|a|halt": {"v": "call", "det": "a", "n": "halt", "idiom": "call a halt", "display": "call a halt", "cn": "叫停；下令停止"}, "call|the|bluff": {"v": "call", "det": "the", "n": "bluff", "idiom": "call the bluff", "display": "call the bluff", "cn": "揭穿虚张声势"}, "call|the|shots": {"v": "call", "det": "the", "n": "shots", "idiom": "call the shots", "display": "call the shots", "cn": "说了算；发号施令"}, "call|the|tune": {"v": "call", "det": "the", "n": "tune", "idiom": "call the tune", "display": "call the tune", "cn": "定调子；拿主意"}, "call|your|bluff": {"v": "call", "det": "your", "n": "bluff", "idiom": "call your bluff", "display": "call your bluff", "cn": "揭穿某人虚张声势"}, "call|your|name": {"v": "call", "det": "your", "n": "name", "idiom": "call your name", "display": "call your name", "cn": "点名批评；指名道姓"}, "carry|the|can": {"v": "carry", "det": "the", "n": "can", "idiom": "carry the can", "display": "carry the can", "cn": "承担责任；背黑锅"}, "carry|the|day": {"v": "carry", "det": "the", "n": "day", "idiom": "carry the day", "display": "carry the day", "cn": "获胜；占上风"}, "carry|the|load": {"v": "carry", "det": "the", "n": "load", "idiom": "carry the load", "display": "carry the load", "cn": "挑大梁；承担重任"}, "carry|the|torch": {"v": "carry", "det": "the", "n": "torch", "idiom": "carry the torch", "display": "carry the torch", "cn": "扛起旗帜；薪火相传"}, "carry|your|cross": {"v": "carry", "det": "your", "n": "cross", "idiom": "carry your cross", "display": "carry your cross", "cn": "默默承受；忍辱负重"}, "cast|the|net": {"v": "cast", "det": "the", "n": "net", "idiom": "cast the net", "display": "Cast the net", "cn": "撒网；扩大搜寻"}, "cast|the|stone": {"v": "cast", "det": "the", "n": "stone", "idiom": "cast the stone", "display": "cast the stone", "cn": "投石问罪；指责他人"}, "catch|a|cold": {"v": "catch", "det": "a", "n": "cold", "idiom": "catch a cold", "display": "catch a cold", "cn": "感冒；着凉"}, "catch|the|break": {"v": "catch", "det": "the", "n": "break", "idiom": "catch the break", "display": "catch the break", "cn": "走运；撞上好机会"}, "catch|the|bug": {"v": "catch", "det": "the", "n": "bug", "idiom": "catch the bug", "display": "catch the bug", "cn": "着迷；上瘾"}, "catch|the|drift": {"v": "catch", "det": "the", "n": "drift", "idiom": "catch the drift", "display": "catch the drift", "cn": "听出言外之意；懂其大意"}, "catch|the|light": {"v": "catch", "det": "the", "n": "light", "idiom": "catch the light", "display": "catch the light", "cn": "在光线下熠熠生辉"}, "catch|the|sun": {"v": "catch", "det": "the", "n": "sun", "idiom": "catch the sun", "display": "catch the sun", "cn": "晒伤；中暑"}, "catch|the|vibe": {"v": "catch", "det": "the", "n": "vibe", "idiom": "catch the vibe", "display": "catch the vibe", "cn": "get 到氛围；心领神会"}, "catch|the|wave": {"v": "catch", "det": "the", "n": "wave", "idiom": "catch the wave", "display": "catch the wave", "cn": "借势；乘风而上"}, "catch|your|breath": {"v": "catch", "det": "your", "n": "breath", "idiom": "catch your breath", "display": "catch your breath", "cn": "喘口气；歇一下"}, "catch|your|death": {"v": "catch", "det": "your", "n": "death", "idiom": "catch your death", "display": "catch your death", "cn": "大病一场"}, "catch|your|fancy": {"v": "catch", "det": "your", "n": "fancy", "idiom": "catch your fancy", "display": "catch your fancy", "cn": "对……中意；合胃口"}, "chance|your|arm": {"v": "chance", "det": "your", "n": "arm", "idiom": "chance your arm", "display": "chance your arm", "cn": "冒险一试"}, "change|the|subject": {"v": "change", "det": "the", "n": "subject", "idiom": "change the subject", "display": "change the subject", "cn": "转移话题；换个话头"}, "change|your|tune": {"v": "change", "det": "your", "n": "tune", "idiom": "change your tune", "display": "change your tune", "cn": "改口；变卦"}, "chew|the|fat": {"v": "chew", "det": "the", "n": "fat", "idiom": "chew the fat", "display": "chew the fat", "cn": "闲聊；唠嗑"}, "choose|your|moment": {"v": "choose", "det": "your", "n": "moment", "idiom": "choose your moment", "display": "choose your moment", "cn": "挑准时机"}, "clear|the|air": {"v": "clear", "det": "the", "n": "air", "idiom": "clear the air", "display": "clear the air", "cn": "消除误会；化解紧张"}, "clear|the|deck": {"v": "clear", "det": "the", "n": "deck", "idiom": "clear the deck", "display": "clear the deck", "cn": "扫清障碍；准备开工"}, "clear|your|throat": {"v": "clear", "det": "your", "n": "throat", "idiom": "clear your throat", "display": "clear your throat", "cn": "清清嗓子"}, "clip|the|wings": {"v": "clip", "det": "the", "n": "wings", "idiom": "clip the wings", "display": "clip the wings", "cn": "限制自由；束缚手脚"}, "close|the|deal": {"v": "close", "det": "the", "n": "deal", "idiom": "close the deal", "display": "close the deal", "cn": "敲定；成交"}, "close|your|mind": {"v": "close", "det": "your", "n": "mind", "idiom": "close your mind", "display": "close your mind", "cn": "拒绝接受新观念；思想封闭"}, "cock|a|snook": {"v": "cock", "det": "a", "n": "snook", "idiom": "cock a snook", "display": "cock a snook", "cn": "公开蔑视；竖中指似的挑衅"}, "coin|a|phrase": {"v": "coin", "det": "a", "n": "phrase", "idiom": "coin a phrase", "display": "coin a phrase", "cn": "造出新词；新创说法"}, "collect|your|wits": {"v": "collect", "det": "your", "n": "wits", "idiom": "collect your wits", "display": "collect your wits", "cn": "回过神来；镇定下来"}, "come|a|cropper": {"v": "come", "det": "a", "n": "cropper", "idiom": "come a cropper", "display": "come a cropper", "cn": "栽跟头；惨败"}, "come|your|way": {"v": "come", "det": "your", "n": "way", "idiom": "come your way", "display": "come your way", "cn": "送上门来；降临到你身上"}, "concentrate|the|mind": {"v": "concentrate", "det": "the", "n": "mind", "idiom": "concentrate the mind", "display": "concentrate the mind", "cn": "让人专注；警醒"}, "connect|the|dots": {"v": "connect", "det": "the", "n": "dots", "idiom": "connect the dots", "display": "connect the dots", "cn": "把线索串起来；弄清来龙去脉"}, "control|the|pursestrings": {"v": "control", "det": "the", "n": "pursestrings", "idiom": "control the pursestrings", "display": "control the pursestrings", "cn": "掌管财务；管钱袋子"}, "cook|the|books": {"v": "cook", "det": "the", "n": "books", "idiom": "cook the books", "display": "cook the books", "cn": "做假账；篡改账目"}, "cook|your|goose": {"v": "cook", "det": "your", "n": "goose", "idiom": "cook your goose", "display": "cook your goose", "cn": "毁了你的好事；让你栽了"}, "cool|your|heels": {"v": "cool", "det": "your", "n": "heels", "idiom": "cool your heels", "display": "cool your heels", "cn": "耐心等；久等"}, "cop|an|attitude": {"v": "cop", "det": "an", "n": "attitude", "idiom": "cop an attitude", "display": "cop an attitude", "cn": "摆出对抗姿态；赌气"}, "corner|the|market": {"v": "corner", "det": "the", "n": "market", "idiom": "corner the market", "display": "corner the market", "cn": "垄断市场；独占鳌头"}, "cost|the|earth": {"v": "cost", "det": "the", "n": "earth", "idiom": "cost the earth", "display": "cost the earth", "cn": "贵得要命"}, "count|the|cost": {"v": "count", "det": "the", "n": "cost", "idiom": "count the cost", "display": "count the cost", "cn": "掂量后果"}, "count|your|blessings": {"v": "count", "det": "your", "n": "blessings", "idiom": "count your blessings", "display": "count your blessings", "cn": "知足；想想自己拥有的"}, "cover|your|tracks": {"v": "cover", "det": "your", "n": "tracks", "idiom": "cover your tracks", "display": "cover your tracks", "cn": "掩盖行踪；抹掉痕迹"}, "crack|a|joke": {"v": "crack", "det": "a", "n": "joke", "idiom": "crack a joke", "display": "crack a joke", "cn": "讲个笑话"}, "crack|the|whip": {"v": "crack", "det": "the", "n": "whip", "idiom": "crack the whip", "display": "crack the whip", "cn": "立规矩；严管"}, "cramp|your|style": {"v": "cramp", "det": "your", "n": "style", "idiom": "cramp your style", "display": "cramp your style", "cn": "碍手碍脚；让人放不开"}, "cross|the|line": {"v": "cross", "det": "the", "n": "line", "idiom": "cross the line", "display": "cross the line", "cn": "越界；过分"}, "cross|your|fingers": {"v": "cross", "det": "your", "n": "fingers", "idiom": "cross your fingers", "display": "cross your fingers", "cn": "祈好运；求老天保佑"}, "cross|your|mind": {"v": "cross", "det": "your", "n": "mind", "idiom": "cross your mind", "display": "cross your mind", "cn": "闪过脑海；突然想到"}, "cross|your|path": {"v": "cross", "det": "your", "n": "path", "idiom": "cross your path", "display": "cross your path", "cn": "不期而遇；偶遇"}, "cut|a|dash": {"v": "cut", "det": "a", "n": "dash", "idiom": "cut a dash", "display": "cut a dash", "cn": "出风头；帅气亮相"}, "cut|the|cackle": {"v": "cut", "det": "the", "n": "cackle", "idiom": "cut the cackle", "display": "cut the cackle", "cn": "别瞎扯；说正事"}, "cut|the|chase": {"v": "cut", "det": "the", "n": "chase", "idiom": "cut the chase", "display": "cut the chase", "cn": "别绕弯子；开门见山"}, "cut|the|cord": {"v": "cut", "det": "the", "n": "cord", "idiom": "cut the cord", "display": "cut the cord", "cn": "断奶；断绝依赖"}, "cut|the|crap": {"v": "cut", "det": "the", "n": "crap", "idiom": "cut the crap", "display": "cut the crap", "cn": "少废话；别装"}, "cut|the|mustard": {"v": "cut", "det": "the", "n": "mustard", "idiom": "cut the mustard", "display": "cut the mustard", "cn": "够格；达标"}, "cut|your|losses": {"v": "cut", "det": "your", "n": "losses", "idiom": "cut your losses", "display": "cut your losses", "cn": "及时止损"}, "cut|your|teeth": {"v": "cut", "det": "your", "n": "teeth", "idiom": "cut your teeth", "display": "cut your teeth", "cn": "初出茅庐；学徒出道"}, "deliver|the|goods": {"v": "deliver", "det": "the", "n": "goods", "idiom": "deliver the goods", "display": "deliver the goods", "cn": "兑现承诺；说到做到"}, "die|the|death": {"v": "die", "det": "the", "n": "death", "idiom": "die the death", "display": "die the death", "cn": "冷场；惨淡收场"}, "do|a|bunk": {"v": "do", "det": "a", "n": "bunk", "idiom": "do a bunk", "display": "do a bunk", "cn": "溜号；跑路"}, "do|a|runner": {"v": "do", "det": "a", "n": "runner", "idiom": "do a runner", "display": "do a runner", "cn": "溜走；脚底抹油"}, "do|the|honors": {"v": "do", "det": "the", "n": "honors", "idiom": "do the honors", "display": "do the honors", "cn": "主持仪式；率先行动"}, "do|the|job": {"v": "do", "det": "the", "n": "job", "idiom": "do the job", "display": "do the job", "cn": "管用；解决问题"}, "do|the|rounds": {"v": "do", "det": "the", "n": "rounds", "idiom": "do the rounds", "display": "do the rounds", "cn": "流传；走马观花"}, "do|the|trick": {"v": "do", "det": "the", "n": "trick", "idiom": "do the trick", "display": "do the trick", "cn": "奏效；管用"}, "do|your|bit": {"v": "do", "det": "your", "n": "bit", "idiom": "do your bit", "display": "do your bit", "cn": "尽自己一份力"}, "do|your|damnedest": {"v": "do", "det": "your", "n": "damnedest", "idiom": "do your damnedest", "display": "do your damnedest", "cn": "拼尽全力"}, "do|your|homework": {"v": "do", "det": "your", "n": "homework", "idiom": "do your homework", "display": "do your homework", "cn": "做好功课；准备充分"}, "do|your|nut": {"v": "do", "det": "your", "n": "nut", "idiom": "do your nut", "display": "do your nut", "cn": "暴跳如雷"}, "do|your|stuff": {"v": "do", "det": "your", "n": "stuff", "idiom": "do your stuff", "display": "do your stuff", "cn": "露一手；大显身手"}, "do|your|utmost": {"v": "do", "det": "your", "n": "utmost", "idiom": "do your utmost", "display": "do your utmost", "cn": "竭尽所能"}, "do|your|worst": {"v": "do", "det": "your", "n": "worst", "idiom": "do your worst", "display": "do your worst", "cn": "放马过来；随便你怎么来"}, "drag|your|feet": {"v": "drag", "det": "your", "n": "feet", "idiom": "drag your feet", "display": "drag your feet", "cn": "磨蹭；拖拖拉拉"}, "drag|your|heels": {"v": "drag", "det": "your", "n": "heels", "idiom": "drag your heels", "display": "drag your heels", "cn": "故意拖时间"}, "draw|a|blank": {"v": "draw", "det": "a", "n": "blank", "idiom": "draw a blank", "display": "draw a blank", "cn": "脑子一片空白；想不起来"}, "draw|the|crowd": {"v": "draw", "det": "the", "n": "crowd", "idiom": "draw the crowd", "display": "draw the crowd", "cn": "招揽人气；吸引眼球"}, "draw|the|curtain": {"v": "draw", "det": "the", "n": "curtain", "idiom": "draw the curtain", "display": "draw the curtain", "cn": "落幕；收场"}, "draw|the|line": {"v": "draw", "det": "the", "n": "line", "idiom": "draw the line", "display": "draw the line", "cn": "划清界限；说不"}, "drop|a|brick": {"v": "drop", "det": "a", "n": "brick", "idiom": "drop a brick", "display": "drop a brick", "cn": "说错话；失言"}, "drop|a|clanger": {"v": "drop", "det": "a", "n": "clanger", "idiom": "drop a clanger", "display": "drop a clanger", "cn": "出洋相；大失言"}, "drop|a/the|hint": {"v": "drop", "det": "a/the", "n": "hint", "idiom": "drop a/the hint", "display": "drop a/the hint", "cn": "给暗示；递个话"}, "drop|the|act": {"v": "drop", "det": "the", "n": "act", "idiom": "drop the act", "display": "drop the act", "cn": "别装了"}, "drop|the|ball": {"v": "drop", "det": "the", "n": "ball", "idiom": "drop the ball", "display": "drop the ball", "cn": "掉链子；搞砸"}, "drop|the|curtain": {"v": "drop", "det": "the", "n": "curtain", "idiom": "drop the curtain", "display": "drop the curtain", "cn": "落下帷幕；结束"}, "drop|the|hammer": {"v": "drop", "det": "the", "n": "hammer", "idiom": "drop the hammer", "display": "drop the hammer", "cn": "重拳出击；下狠手"}, "drop|the|subject": {"v": "drop", "det": "the", "n": "subject", "idiom": "drop the subject", "display": "drop the subject", "cn": "别再提了；到此为止"}, "drop|your|aitches": {"v": "drop", "det": "your", "n": "aitches", "idiom": "drop your aitches", "display": "drop your aitches", "cn": "说话不带 h 音（社会阶层标志）"}, "drown|your|sorrows": {"v": "drown", "det": "your", "n": "sorrows", "idiom": "drown your sorrows", "display": "drown your sorrows", "cn": "借酒消愁"}, "earn|your|keep": {"v": "earn", "det": "your", "n": "keep", "idiom": "earn your keep", "display": "earn your keep", "cn": "挣一份口粮；做出贡献"}, "eat|your|words": {"v": "eat", "det": "your", "n": "words", "idiom": "eat your words", "display": "eat your words", "cn": "收回前言；自食其言"}, "enter|your|head": {"v": "enter", "det": "your", "n": "head", "idiom": "enter your head", "display": "enter your head", "cn": "掠过脑海；想到"}, "escape|your|notice": {"v": "escape", "det": "your", "n": "notice", "idiom": "escape your notice", "display": "escape your notice", "cn": "逃过你的注意；没注意到"}, "excuse|my|french": {"v": "excuse", "det": "my", "n": "french", "idiom": "excuse my french", "display": "excuse my french", "cn": "恕我直言（讲脏话前的客套）"}, "expose|the|truth": {"v": "expose", "det": "the", "n": "truth", "idiom": "expose the truth", "display": "expose the truth", "cn": "揭开真相"}, "face|the|facts": {"v": "face", "det": "the", "n": "facts", "idiom": "face the facts", "display": "face the facts", "cn": "面对现实"}, "face|the|music": {"v": "face", "det": "the", "n": "music", "idiom": "face the music", "display": "face the music", "cn": "承担后果；自食其果"}, "face|the|truth": {"v": "face", "det": "the", "n": "truth", "idiom": "face the truth", "display": "face the truth", "cn": "直面真相"}, "fan|the|embers": {"v": "fan", "det": "the", "n": "embers", "idiom": "fan the embers", "display": "fan the embers", "cn": "重燃余烬；让快要熄灭的火焰再起"}, "fan|the|fire": {"v": "fan", "det": "the", "n": "fire", "idiom": "fan the fire", "display": "fan the fire", "cn": "推波助澜；火上浇油"}, "fan|the|flames": {"v": "fan", "det": "the", "n": "flames", "idiom": "fan the flames", "display": "fan the flames", "cn": "煽风点火"}, "fancy|your|chances": {"v": "fancy", "det": "your", "n": "chances", "idiom": "fancy your chances", "display": "fancy your chances", "cn": "觉得自己有戏"}, "feather|your|nest": {"v": "feather", "det": "your", "n": "nest", "idiom": "feather your nest", "display": "feather your nest", "cn": "中饱私囊；给自己捞好处"}, "feel|the|burn": {"v": "feel", "det": "the", "n": "burn", "idiom": "feel the burn", "display": "feel the burn", "cn": "感到灼痛；尝到苦头"}, "feel|the|draught": {"v": "feel", "det": "the", "n": "draught", "idiom": "feel the draught", "display": "feel the draught", "cn": "日子紧巴巴；手头拮据"}, "feel|the|heat": {"v": "feel", "det": "the", "n": "heat", "idiom": "feel the heat", "display": "feel the heat", "cn": "顶住压力"}, "feel|the|pinch": {"v": "feel", "det": "the", "n": "pinch", "idiom": "feel the pinch", "display": "feel the pinch", "cn": "手头紧；吃紧"}, "feel|the|sting": {"v": "feel", "det": "the", "n": "sting", "idiom": "feel the sting", "display": "feel the sting", "cn": "感受刺痛；心被扎了一下"}, "feel|your|age": {"v": "feel", "det": "your", "n": "age", "idiom": "feel your age", "display": "feel your age", "cn": "感到老了"}, "feel|your|way": {"v": "feel", "det": "your", "n": "way", "idiom": "feel your way", "display": "feel your way", "cn": "摸着石头过河；小心试探"}, "fight|your|corner": {"v": "fight", "det": "your", "n": "corner", "idiom": "fight your corner", "display": "fight your corner", "cn": "为自己据理力争"}, "fill|the|bill": {"v": "fill", "det": "the", "n": "bill", "idiom": "fill the bill", "display": "fill the bill", "cn": "正合适；符合要求"}, "fill|the|void": {"v": "fill", "det": "the", "n": "void", "idiom": "fill the void", "display": "fill the void", "cn": "填补空缺；填补空虚"}, "fill|your|shoes": {"v": "fill", "det": "your", "n": "shoes", "idiom": "fill your shoes", "display": "fill your shoes", "cn": "顶替你的位置"}, "find|your|bearings": {"v": "find", "det": "your", "n": "bearings", "idiom": "find your bearings", "display": "find your bearings", "cn": "辨清方向；进入状态"}, "find|your|feet": {"v": "find", "det": "your", "n": "feet", "idiom": "find your feet", "display": "find your feet", "cn": "站稳脚跟；适应新环境"}, "find|your|match": {"v": "find", "det": "your", "n": "match", "idiom": "find your match", "display": "find your match", "cn": "遇到对手；棋逢对手"}, "fire|the|imagination": {"v": "fire", "det": "the", "n": "imagination", "idiom": "fire the imagination", "display": "fire the imagination", "cn": "激发想象力"}, "fit|the|bill": {"v": "fit", "det": "the", "n": "bill", "idiom": "fit the bill", "display": "fit the bill", "cn": "符合要求；合适"}, "flex|your|muscles": {"v": "flex", "det": "your", "n": "muscles", "idiom": "flex your muscles", "display": "flex your muscles", "cn": "秀肌肉；展示实力"}, "flip|the|bird": {"v": "flip", "det": "the", "n": "bird", "idiom": "flip the bird", "display": "flip the bird", "cn": "竖中指"}, "flip|the|switch": {"v": "flip", "det": "the", "n": "switch", "idiom": "flip the switch", "display": "flip the switch", "cn": "骤然转换；180 度大转弯"}, "flip|your|lid": {"v": "flip", "det": "your", "n": "lid", "idiom": "flip your lid", "display": "flip your lid", "cn": "气炸了；暴跳如雷"}, "fly|a|kite": {"v": "fly", "det": "a", "n": "kite", "idiom": "fly a kite", "display": "fly a kite", "cn": "试探口风；放风"}, "fly|the|flag": {"v": "fly", "det": "the", "n": "flag", "idiom": "fly the flag", "display": "fly the flag", "cn": "亮出身份；公开支持"}, "foot|the|bill": {"v": "foot", "det": "the", "n": "bill", "idiom": "foot the bill", "display": "foot the bill", "cn": "买单；掏腰包"}, "force|the|pace": {"v": "force", "det": "the", "n": "pace", "idiom": "force the pace", "display": "force the pace", "cn": "加快节奏；提速"}, "force|your|hand": {"v": "force", "det": "your", "n": "hand", "idiom": "force your hand", "display": "force your hand", "cn": "逼你就范；让你不得不行动"}, "gather|your|wits": {"v": "gather", "det": "your", "n": "wits", "idiom": "gather your wits", "display": "gather your wits", "cn": "回过神来；理清思路"}, "get|a|grip": {"v": "get", "det": "a", "n": "grip", "idiom": "get a grip", "display": "get a grip", "cn": "冷静下来；控制住自己"}, "get|a|life": {"v": "get", "det": "a", "n": "life", "idiom": "get a life", "display": "get a life", "cn": "找点正事做；别再混了"}, "get|the|boot": {"v": "get", "det": "the", "n": "boot", "idiom": "get the boot", "display": "get the boot", "cn": "被开除；被甩掉"}, "get|the|eye": {"v": "get", "det": "the", "n": "eye", "idiom": "get the eye", "display": "get the eye", "cn": "抛媚眼；冷眼"}, "get|the|hump": {"v": "get", "det": "the", "n": "hump", "idiom": "get the hump", "display": "get the hump", "cn": "闹情绪；心里不痛快"}, "get|the|idea": {"v": "get", "det": "the", "n": "idea", "idiom": "get the idea", "display": "get the idea", "cn": "明白过来；懂了"}, "get|the|message": {"v": "get", "det": "the", "n": "message", "idiom": "get the message", "display": "get the message", "cn": "心领神会；听懂暗示"}, "get|the|nod": {"v": "get", "det": "the", "n": "nod", "idiom": "get the nod", "display": "get the nod", "cn": "被选中；获批"}, "get|the|picture": {"v": "get", "det": "the", "n": "picture", "idiom": "get the picture", "display": "get the picture", "cn": "搞清楚状况；心里有数"}, "get|the|point": {"v": "get", "det": "the", "n": "point", "idiom": "get the point", "display": "get the point", "cn": "明白意思；抓住重点"}, "get|the|push": {"v": "get", "det": "the", "n": "push", "idiom": "get the push", "display": "get the push", "cn": "被开除；被甩"}, "get|the|sack": {"v": "get", "det": "the", "n": "sack", "idiom": "get the sack", "display": "get the sack", "cn": "被炒鱿鱼"}, "get|the|shivers": {"v": "get", "det": "the", "n": "shivers", "idiom": "get the shivers", "display": "get the shivers", "cn": "起鸡皮疙瘩；打寒颤"}, "get|your|bearings": {"v": "get", "det": "your", "n": "bearings", "idiom": "get your bearings", "display": "get your bearings", "cn": "辨清方向；进入状态"}, "get|your|goat": {"v": "get", "det": "your", "n": "goat", "idiom": "get your goat", "display": "get your goat", "cn": "惹恼你；让你抓狂"}, "get|your|meaning": {"v": "get", "det": "your", "n": "meaning", "idiom": "get your meaning", "display": "get your meaning", "cn": "明白你的意思"}, "get|your|oats": {"v": "get", "det": "your", "n": "oats", "idiom": "get your oats", "display": "get your oats", "cn": "满足性欲（俚语）"}, "gild|the|lily": {"v": "gild", "det": "the", "n": "lily", "idiom": "gild the lily", "display": "gild the lily", "cn": "画蛇添足；多此一举地装饰"}, "gird|your|lions": {"v": "gird", "det": "your", "n": "lions", "idiom": "gird your lions", "display": "gird your lions", "cn": "鼓起勇气；做好战斗准备"}, "give|a|lead": {"v": "give", "det": "a", "n": "lead", "idiom": "give a lead", "display": "give a lead", "cn": "带头；领个头"}, "give|the|sack": {"v": "give", "det": "the", "n": "sack", "idiom": "give the sack", "display": "give the sack", "cn": "把人开除"}, "give|the|slip": {"v": "give", "det": "the", "n": "slip", "idiom": "give the slip", "display": "give the slip", "cn": "溜走；脱身"}, "go|the|distance": {"v": "go", "det": "the", "n": "distance", "idiom": "go the distance", "display": "go the distance", "cn": "坚持到底；撑完全程"}, "go|the|rounds": {"v": "go", "det": "the", "n": "rounds", "idiom": "go the rounds", "display": "go the rounds", "cn": "四处流传；走马观花"}, "grasp|the|nettle": {"v": "grasp", "det": "the", "n": "nettle", "idiom": "grasp the nettle", "display": "grasp the nettle", "cn": "迎难而上；硬着头皮干"}, "grease|the|wheels": {"v": "grease", "det": "the", "n": "wheels", "idiom": "grease the wheels", "display": "grease the wheels", "cn": "铺路；疏通关系"}, "grease|your|palm": {"v": "grease", "det": "your", "n": "palm", "idiom": "grease your palm", "display": "grease your palm", "cn": "行贿；塞钱"}, "grit|your|teeth": {"v": "grit", "det": "your", "n": "teeth", "idiom": "grit your teeth", "display": "grit your teeth", "cn": "咬紧牙关；硬扛"}, "hate|your|guts": {"v": "hate", "det": "your", "n": "guts", "idiom": "hate your guts", "display": "hate your guts", "cn": "恨透了你"}, "have|a|ball": {"v": "have", "det": "a", "n": "ball", "idiom": "have a ball", "display": "have a ball", "cn": "玩得尽兴"}, "have|a|bash": {"v": "have", "det": "a", "n": "bash", "idiom": "have a bash", "display": "have a bash", "cn": "试试看；碰碰运气"}, "have|a|blast": {"v": "have", "det": "a", "n": "blast", "idiom": "have a blast", "display": "have a blast", "cn": "玩得超爽"}, "have|a|cow": {"v": "have", "det": "a", "n": "cow", "idiom": "have a cow", "display": "have a cow", "cn": "大惊小怪；反应过激"}, "have|a|fit": {"v": "have", "det": "a", "n": "fit", "idiom": "have a fit", "display": "have a fit", "cn": "大发雷霆；气得不行"}, "have|a|fling": {"v": "have", "det": "a", "n": "fling", "idiom": "have a fling", "display": "have a fling", "cn": "放纵一下；逢场作戏"}, "have|a|heart": {"v": "have", "det": "a", "n": "heart", "idiom": "have a heart", "display": "have a heart", "cn": "发发慈悲；有点良心"}, "have|a|job": {"v": "have", "det": "a", "n": "job", "idiom": "have a job", "display": "have a job", "cn": "费劲；难办"}, "have|the|face": {"v": "have", "det": "the", "n": "face", "idiom": "have the face", "display": "have the face", "cn": "厚着脸皮；好意思"}, "have|the|nerve": {"v": "have", "det": "the", "n": "nerve", "idiom": "have the nerve", "display": "have the nerve", "cn": "厚颜无耻；胆大包天"}, "have|your|moments": {"v": "have", "det": "your", "n": "moments", "idiom": "have your moments", "display": "have your moments", "cn": "偶尔也有闪光点"}, "have|your|number": {"v": "have", "det": "your", "n": "number", "idiom": "have your number", "display": "have your number", "cn": "看穿你；摸清你"}, "hedge|your|bets": {"v": "hedge", "det": "your", "n": "bets", "idiom": "hedge your bets", "display": "hedge your bets", "cn": "两边下注；不把鸡蛋放一个篮子"}, "hit|the|books": {"v": "hit", "det": "the", "n": "books", "idiom": "hit the books", "display": "hit the books", "cn": "啃书；用功"}, "hit|the|bottle": {"v": "hit", "det": "the", "n": "bottle", "idiom": "hit the bottle", "display": "hit the bottle", "cn": "酗酒；灌酒"}, "hit|the|deck": {"v": "hit", "det": "the", "n": "deck", "idiom": "hit the deck", "display": "hit the deck", "cn": "趴下；卧倒"}, "hit|the|hay": {"v": "hit", "det": "the", "n": "hay", "idiom": "hit the hay", "display": "hit the hay", "cn": "睡觉；上床"}, "hit|the|headlines": {"v": "hit", "det": "the", "n": "headlines", "idiom": "hit the headlines", "display": "hit the headlines", "cn": "登上头条"}, "hit|the|jackpot": {"v": "hit", "det": "the", "n": "jackpot", "idiom": "hit the jackpot", "display": "hit the jackpot", "cn": "中头彩；撞大运"}, "hit|the|mark": {"v": "hit", "det": "the", "n": "mark", "idiom": "hit the mark", "display": "hit the mark", "cn": "正中靶心；说到点子上"}, "hit|the|road": {"v": "hit", "det": "the", "n": "road", "idiom": "hit the road", "display": "hit the road", "cn": "上路；启程"}, "hit|the|roof": {"v": "hit", "det": "the", "n": "roof", "idiom": "hit the roof", "display": "hit the roof", "cn": "暴跳如雷"}, "hit|the|sack": {"v": "hit", "det": "the", "n": "sack", "idiom": "hit the sack", "display": "hit the sack", "cn": "上床睡觉"}, "hit|the|sauce": {"v": "hit", "det": "the", "n": "sauce", "idiom": "hit the sauce", "display": "hit the sauce", "cn": "猛灌酒"}, "hit|the|spot": {"v": "hit", "det": "the", "n": "spot", "idiom": "hit the spot", "display": "hit the spot", "cn": "正中下怀；过瘾"}, "hit|the|wall": {"v": "hit", "det": "the", "n": "wall", "idiom": "hit the wall", "display": "hit the wall", "cn": "撞墙；撑不住了"}, "hitch|a|lift": {"v": "hitch", "det": "a", "n": "lift", "idiom": "hitch a lift", "display": "hitch a lift", "cn": "搭顺风车"}, "hold|the|ace": {"v": "hold", "det": "the", "n": "ace", "idiom": "hold the ace", "display": "hold the ace", "cn": "握有王牌"}, "hold|the|fort": {"v": "hold", "det": "the", "n": "fort", "idiom": "hold the fort", "display": "hold the fort", "cn": "代为看管；镇守"}, "hold|the|line": {"v": "hold", "det": "the", "n": "line", "idiom": "hold the line", "display": "hold the line", "cn": "坚守阵地；不让步"}, "hold|the|pursestrings": {"v": "hold", "det": "the", "n": "pursestrings", "idiom": "hold the pursestrings", "display": "hold the pursestrings", "cn": "管钱袋子"}, "hold|the|ring": {"v": "hold", "det": "the", "n": "ring", "idiom": "hold the ring", "display": "hold the ring", "cn": "稳住局面；掌控大局"}, "hold|your|horses": {"v": "hold", "det": "your", "n": "horses", "idiom": "hold your horses", "display": "hold your horses", "cn": "稳住；别急"}, "hold|your|tongue": {"v": "hold", "det": "your", "n": "tongue", "idiom": "hold your tongue", "display": "hold your tongue", "cn": "闭嘴；忍住不说"}, "jog|your|memory": {"v": "jog", "det": "your", "n": "memory", "idiom": "jog your memory", "display": "jog your memory", "cn": "帮你回忆；唤起记忆"}, "jump|the|fence": {"v": "jump", "det": "the", "n": "fence", "idiom": "jump the fence", "display": "jump the fence", "cn": "倒戈；改换门庭"}, "jump|the|gun": {"v": "jump", "det": "the", "n": "gun", "idiom": "jump the gun", "display": "jump the gun", "cn": "操之过急；抢跑"}, "jump|the|lights": {"v": "jump", "det": "the", "n": "lights", "idiom": "jump the lights", "display": "jump the lights", "cn": "闯红灯"}, "jump|the|queue": {"v": "jump", "det": "the", "n": "queue", "idiom": "jump the queue", "display": "jump the queue", "cn": "插队"}, "jump|the|shark": {"v": "jump", "det": "the", "n": "shark", "idiom": "jump the shark", "display": "jump the shark", "cn": "走下坡路；开始走下坡（曾辉煌后变烂）"}, "keep|the|faith": {"v": "keep", "det": "the", "n": "faith", "idiom": "keep the faith", "display": "keep the faith", "cn": "保持信念；坚持下去"}, "keep|the|peace": {"v": "keep", "det": "the", "n": "peace", "idiom": "keep the peace", "display": "keep the peace", "cn": "维持和睦；息事宁人"}, "keep|your|distance": {"v": "keep", "det": "your", "n": "distance", "idiom": "keep your distance", "display": "keep your distance", "cn": "保持距离"}, "keep|your|head": {"v": "keep", "det": "your", "n": "head", "idiom": "keep your head", "display": "keep your head", "cn": "保持镇静"}, "kick|the|bucket": {"v": "kick", "det": "the", "n": "bucket", "idiom": "kick the bucket", "display": "kick the bucket", "cn": "翘辫子；去世（幽默）"}, "kick|the|habit": {"v": "kick", "det": "the", "n": "habit", "idiom": "kick the habit", "display": "kick the habit", "cn": "戒掉坏习惯"}, "kick|your|heels": {"v": "kick", "det": "your", "n": "heels", "idiom": "kick your heels", "display": "kick your heels", "cn": "干等；坐冷板凳"}, "knit|your|brows": {"v": "knit", "det": "your", "n": "brows", "idiom": "knit your brows", "display": "knit your brows", "cn": "皱眉；蹙眉"}, "know|the|ropes": {"v": "know", "det": "the", "n": "ropes", "idiom": "know the ropes", "display": "know the ropes", "cn": "懂行；熟悉门道"}, "know|the|score": {"v": "know", "det": "the", "n": "score", "idiom": "know the score", "display": "know the score", "cn": "了解内情；心里有数"}, "know|the|source": {"v": "know", "det": "the", "n": "source", "idiom": "know the source", "display": "know the source", "cn": "知道出处"}, "know|your|stuff": {"v": "know", "det": "your", "n": "stuff", "idiom": "know your stuff", "display": "know your stuff", "cn": "懂行；内行"}, "labor|the|point": {"v": "labor", "det": "the", "n": "point", "idiom": "labor the point", "display": "labor the point", "cn": "啰嗦；翻来覆去地说"}, "lay|an|egg": {"v": "lay", "det": "an", "n": "egg", "idiom": "lay an egg", "display": "lay an egg", "cn": "砸锅；惨败"}, "lay|the|blame": {"v": "lay", "det": "the", "n": "blame", "idiom": "lay the blame", "display": "lay the blame", "cn": "归咎于；怪罪"}, "lay|the|groundwork": {"v": "lay", "det": "the", "n": "groundwork", "idiom": "lay the groundwork", "display": "lay the groundwork", "cn": "打基础；铺路"}, "lead|the|way": {"v": "lead", "det": "the", "n": "way", "idiom": "lead the way", "display": "lead the way", "cn": "带路；率先"}, "learn|the|ropes": {"v": "learn", "det": "the", "n": "ropes", "idiom": "learn the ropes", "display": "learn the ropes", "cn": "摸清门道"}, "learn|your|lesson": {"v": "learn", "det": "your", "n": "lesson", "idiom": "learn your lesson", "display": "learn your lesson", "cn": "得到教训"}, "lend|a|hand": {"v": "lend", "det": "a", "n": "hand", "idiom": "lend a hand", "display": "lend a hand", "cn": "搭把手"}, "lend|an|ear": {"v": "lend", "det": "an", "n": "ear", "idiom": "lend an ear", "display": "lend an ear", "cn": "倾听"}, "lick|your|arse": {"v": "lick", "det": "your", "n": "arse", "idiom": "lick your arse", "display": "lick your arse", "cn": "拍马屁；阿谀奉承"}, "lick|your|boots": {"v": "lick", "det": "your", "n": "boots", "idiom": "lick your boots", "display": "lick your boots", "cn": "溜须拍马"}, "lick|your|wounds": {"v": "lick", "det": "your", "n": "wounds", "idiom": "lick your wounds", "display": "lick your wounds", "cn": "舔伤口；疗伤"}, "lift|a|finger": {"v": "lift", "det": "a", "n": "finger", "idiom": "lift a finger", "display": "lift a finger", "cn": "搭把手；出力"}, "lift|the|roof": {"v": "lift", "det": "the", "n": "roof", "idiom": "lift the roof", "display": "lift the roof", "cn": "热闹非凡；爆棚"}, "light|the|fire": {"v": "light", "det": "the", "n": "fire", "idiom": "light the fire", "display": "light the fire", "cn": "点燃激情；激发动机"}, "line|your|pockets": {"v": "line", "det": "your", "n": "pockets", "idiom": "line your pockets", "display": "line your pockets", "cn": "中饱私囊"}, "live|a|lie": {"v": "live", "det": "a", "n": "lie", "idiom": "live a lie", "display": "live a lie", "cn": "活在谎言中"}, "look|a|sight": {"v": "look", "det": "a", "n": "sight", "idiom": "look a sight", "display": "look a sight", "cn": "看上去狼狈"}, "look|the|part": {"v": "look", "det": "the", "n": "part", "idiom": "look the part", "display": "look the part", "cn": "像那么回事；看着像干这行的"}, "look|your|best": {"v": "look", "det": "your", "n": "best", "idiom": "look your best", "display": "look your best", "cn": "展现最好的一面"}, "lose|the|plot": {"v": "lose", "det": "the", "n": "plot", "idiom": "lose the plot", "display": "lose the plot", "cn": "方寸大乱；抓狂"}, "lose|your|cool": {"v": "lose", "det": "your", "n": "cool", "idiom": "lose your cool", "display": "lose your cool", "cn": "沉不住气；发火"}, "lose|your|edge": {"v": "lose", "det": "your", "n": "edge", "idiom": "lose your edge", "display": "lose your edge", "cn": "丧失优势；状态下滑"}, "lose|your|grip": {"v": "lose", "det": "your", "n": "grip", "idiom": "lose your grip", "display": "lose your grip", "cn": "把控不住；hold 不住"}, "lose|your|heart": {"v": "lose", "det": "your", "n": "heart", "idiom": "lose your heart", "display": "lose your heart", "cn": "坠入爱河"}, "lose|your|life": {"v": "lose", "det": "your", "n": "life", "idiom": "lose your life", "display": "lose your life", "cn": "丧命"}, "lose|your|marbles": {"v": "lose", "det": "your", "n": "marbles", "idiom": "lose your marbles", "display": "lose your marbles", "cn": "发疯；脑子不正常"}, "lose|your|rag": {"v": "lose", "det": "your", "n": "rag", "idiom": "lose your rag", "display": "lose your rag", "cn": "发火；按捺不住"}, "lose|your|shirt": {"v": "lose", "det": "your", "n": "shirt", "idiom": "lose your shirt", "display": "lose your shirt", "cn": "赔个精光；倾家荡产"}, "lose|your|touch": {"v": "lose", "det": "your", "n": "touch", "idiom": "lose your touch", "display": "lose your touch", "cn": "手感不再；状态下滑"}, "lower|your|sights": {"v": "lower", "det": "your", "n": "sights", "idiom": "lower your sights", "display": "lower your sights", "cn": "降低期望"}, "make|a|face": {"v": "make", "det": "a", "n": "face", "idiom": "make a face", "display": "make a face", "cn": "做鬼脸；摆脸色"}, "make|a|fortune": {"v": "make", "det": "a", "n": "fortune", "idiom": "make a fortune", "display": "make a fortune", "cn": "发大财"}, "make|a|killing": {"v": "make", "det": "a", "n": "killing", "idiom": "make a killing", "display": "make a killing", "cn": "大赚一笔"}, "make|a|move": {"v": "make", "det": "a", "n": "move", "idiom": "make a move", "display": "make a move", "cn": "采取行动；出手"}, "make|a|pitch": {"v": "make", "det": "a", "n": "pitch", "idiom": "make a pitch", "display": "make a pitch", "cn": "推销；游说"}, "make|a|splash": {"v": "make", "det": "a", "n": "splash", "idiom": "make a splash", "display": "make a splash", "cn": "一鸣惊人；引起轰动"}, "make|a|stand": {"v": "make", "det": "a", "n": "stand", "idiom": "make a stand", "display": "make a stand", "cn": "表态；站出来"}, "make|the|cut": {"v": "make", "det": "the", "n": "cut", "idiom": "make the cut", "display": "make the cut", "cn": "入围；达标"}, "make|the|grade": {"v": "make", "det": "the", "n": "grade", "idiom": "make the grade", "display": "make the grade", "cn": "够格；达标"}, "make|the|running": {"v": "make", "det": "the", "n": "running", "idiom": "make the running", "display": "make the running", "cn": "领跑；带头"}, "make|the|scene": {"v": "make", "det": "the", "n": "scene", "idiom": "make the scene", "display": "make the scene", "cn": "到场；现身"}, "make|your|day": {"v": "make", "det": "your", "n": "day", "idiom": "make your day", "display": "make your day", "cn": "让你开心一整天"}, "make|your|mark": {"v": "make", "det": "your", "n": "mark", "idiom": "make your mark", "display": "make your mark", "cn": "留下印记；出人头地"}, "make|your|pile": {"v": "make", "det": "your", "n": "pile", "idiom": "make your pile", "display": "make your pile", "cn": "攒下一大笔钱"}, "make|your|point": {"v": "make", "det": "your", "n": "point", "idiom": "make your point", "display": "make your point", "cn": "说清楚观点"}, "mark|your|words": {"v": "mark", "det": "your", "n": "words", "idiom": "mark your words", "display": "mark your words", "cn": "记住我说的话（警告）"}, "meet|your|eyes": {"v": "meet", "det": "your", "n": "eyes", "idiom": "meet your eyes", "display": "meet your eyes", "cn": "目光相遇"}, "meet|your|maker": {"v": "meet", "det": "your", "n": "maker", "idiom": "meet your maker", "display": "meet your maker", "cn": "见上帝；归西"}, "meet|your|match": {"v": "meet", "det": "your", "n": "match", "idiom": "meet your match", "display": "meet your match", "cn": "遇到对手"}, "meet|your|waterloo": {"v": "meet", "det": "your", "n": "waterloo", "idiom": "meet your waterloo", "display": "meet your Waterloo", "cn": "遭遇滑铁卢；彻底失败"}, "mend|your|ways": {"v": "mend", "det": "your", "n": "ways", "idiom": "mend your ways", "display": "mend your ways", "cn": "改过自新"}, "mind|the|gap": {"v": "mind", "det": "the", "n": "gap", "idiom": "mind the gap", "display": "mind the gap", "cn": "小心间隙；注意差异"}, "mind|the|store": {"v": "mind", "det": "the", "n": "store", "idiom": "mind the store", "display": "mind the store", "cn": "代为照看；顶班"}, "mind|your|step": {"v": "mind", "det": "your", "n": "step", "idiom": "mind your step", "display": "mind your step", "cn": "脚下小心"}, "miss|the|boat": {"v": "miss", "det": "the", "n": "boat", "idiom": "miss the boat", "display": "miss the boat", "cn": "错失良机"}, "move|the|goalposts": {"v": "move", "det": "the", "n": "goalposts", "idiom": "move the goalposts", "display": "move the goalposts", "cn": "临阵改规则；变卦"}, "move|the|needle": {"v": "move", "det": "the", "n": "needle", "idiom": "move the needle", "display": "move the needle", "cn": "产生重大影响"}, "move|your|bowels": {"v": "move", "det": "your", "n": "bowels", "idiom": "move your bowels", "display": "move your bowels", "cn": "大便（医学委婉语）"}, "muddy|the|waters": {"v": "muddy", "det": "the", "n": "waters", "idiom": "muddy the waters", "display": "muddy the waters", "cn": "把水搅浑；混淆视听"}, "mums|the|word": {"v": "mums", "det": "the", "n": "word", "idiom": "mums the word", "display": "mums the word", "cn": "保密；别吱声"}, "name|the|day": {"v": "name", "det": "the", "n": "day", "idiom": "name the day", "display": "name the day", "cn": "定日子；敲定日期"}, "oil|the|wheels": {"v": "oil", "det": "the", "n": "wheels", "idiom": "oil the wheels", "display": "oil the wheels", "cn": "疏通关系；让事情顺起来"}, "open|the|floodgates": {"v": "open", "det": "the", "n": "floodgates", "idiom": "open the floodgates", "display": "open the floodgates", "cn": "开闸；一发不可收拾"}, "open|your|eyes": {"v": "open", "det": "your", "n": "eyes", "idiom": "open your eyes", "display": "open your eyes", "cn": "睁开眼睛看；醒悟"}, "open|your|mouth": {"v": "open", "det": "your", "n": "mouth", "idiom": "open your mouth", "display": "open your mouth", "cn": "开口说话"}, "overshoot|the|mark": {"v": "overshoot", "det": "the", "n": "mark", "idiom": "overshoot the mark", "display": "overshoot the mark", "cn": "过头；过犹不及"}, "overstep|the|mark": {"v": "overstep", "det": "the", "n": "mark", "idiom": "overstep the mark", "display": "overstep the mark", "cn": "越界；过线"}, "pack|a|punch": {"v": "pack", "det": "a", "n": "punch", "idiom": "pack a punch", "display": "pack a punch", "cn": "有冲劲；够劲儿"}, "pack|your|bags": {"v": "pack", "det": "your", "n": "bags", "idiom": "pack your bags", "display": "pack your bags", "cn": "收拾行李；准备走人"}, "paint|the|town": {"v": "paint", "det": "the", "n": "town", "idiom": "paint the town", "display": "paint the town", "cn": "狂欢；大肆庆祝"}, "pass|the|buck": {"v": "pass", "det": "the", "n": "buck", "idiom": "pass the buck", "display": "pass the buck", "cn": "踢皮球；推卸责任"}, "pass|your|time": {"v": "pass", "det": "your", "n": "time", "idiom": "pass your time", "display": "pass your time", "cn": "消磨时间"}, "pave|the|way": {"v": "pave", "det": "the", "n": "way", "idiom": "pave the way", "display": "pave the way", "cn": "铺平道路；开路"}, "pay|the|piper": {"v": "pay", "det": "the", "n": "piper", "idiom": "pay the piper", "display": "pay the piper", "cn": "自食其果"}, "pay|your|respects": {"v": "pay", "det": "your", "n": "respects", "idiom": "pay your respects", "display": "pay your respects", "cn": "吊唁；致敬"}, "pay|your|way": {"v": "pay", "det": "your", "n": "way", "idiom": "pay your way", "display": "pay your way", "cn": "自食其力；自己负担开销"}, "perish|the|thought": {"v": "perish", "det": "the", "n": "thought", "idiom": "perish the thought", "display": "perish the thought", "cn": "但愿别这样；想都别想"}, "pick|a|fight": {"v": "pick", "det": "a", "n": "fight", "idiom": "pick a fight", "display": "pick a fight", "cn": "找茬；挑事"}, "pick|a|quarrel": {"v": "pick", "det": "a", "n": "quarrel", "idiom": "pick a quarrel", "display": "pick a quarrel", "cn": "找茬吵架"}, "pick|the|brain": {"v": "pick", "det": "the", "n": "brain", "idiom": "pick the brain", "display": "pick the brain", "cn": "请教；取经"}, "pick|the|lock": {"v": "pick", "det": "the", "n": "lock", "idiom": "pick the lock", "display": "pick the lock", "cn": "撬锁"}, "pick|the|pace": {"v": "pick", "det": "the", "n": "pace", "idiom": "pick the pace", "display": "pick the pace", "cn": "加快速度"}, "pick|your|moment": {"v": "pick", "det": "your", "n": "moment", "idiom": "pick your moment", "display": "pick your moment", "cn": "挑准时机"}, "pick|your|pocket": {"v": "pick", "det": "your", "n": "pocket", "idiom": "pick your pocket", "display": "pick your pocket", "cn": "扒窃；摸钱包"}, "plant|the|seed": {"v": "plant", "det": "the", "n": "seed", "idiom": "plant the seed", "display": "plant the seed", "cn": "埋下种子；播下想法"}, "play|the|angles": {"v": "play", "det": "the", "n": "angles", "idiom": "play the angles", "display": "play the angles", "cn": "用巧劲；钻空子"}, "play|the|cards": {"v": "play", "det": "the", "n": "cards", "idiom": "play the cards", "display": "play the cards", "cn": "打好手中牌；善用局势"}, "play|the|field": {"v": "play", "det": "the", "n": "field", "idiom": "play the field", "display": "play the field", "cn": "广撒网；多方尝试"}, "play|the|fool": {"v": "play", "det": "the", "n": "fool", "idiom": "play the fool", "display": "play the fool", "cn": "装傻；扮丑"}, "play|the|game": {"v": "play", "det": "the", "n": "game", "idiom": "play the game", "display": "play the game", "cn": "按规矩办事；玩政治"}, "play|the|market": {"v": "play", "det": "the", "n": "market", "idiom": "play the market", "display": "play the market", "cn": "炒股；做投资"}, "play|your|part": {"v": "play", "det": "your", "n": "part", "idiom": "play your part", "display": "play your part", "cn": "尽本分；演好你的角色"}, "point|the|finger": {"v": "point", "det": "the", "n": "finger", "idiom": "point the finger", "display": "point the finger", "cn": "指责"}, "point|the|way": {"v": "point", "det": "the", "n": "way", "idiom": "point the way", "display": "point the way", "cn": "指明方向"}, "pop|the|question": {"v": "pop", "det": "the", "n": "question", "idiom": "pop the question", "display": "pop the question", "cn": "求婚"}, "pour|the|tea": {"v": "pour", "det": "the", "n": "tea", "idiom": "pour the tea", "display": "pour the tea", "cn": "八卦；分享小道消息"}, "prepare|the|ground": {"v": "prepare", "det": "the", "n": "ground", "idiom": "prepare the ground", "display": "prepare the ground", "cn": "打好基础；铺路"}, "press|the|flesh": {"v": "press", "det": "the", "n": "flesh", "idiom": "press the flesh", "display": "press the flesh", "cn": "握手寒暄；广结人脉"}, "press|the|issue": {"v": "press", "det": "the", "n": "issue", "idiom": "press the issue", "display": "press the issue", "cn": "紧咬不放；施压"}, "press|the|point": {"v": "press", "det": "the", "n": "point", "idiom": "press the point", "display": "press the point", "cn": "反复强调；坚持己见"}, "prime|the|pump": {"v": "prime", "det": "the", "n": "pump", "idiom": "prime the pump", "display": "prime the pump", "cn": "注入活力；刺激发展"}, "prolong|the|agony": {"v": "prolong", "det": "the", "n": "agony", "idiom": "prolong the agony", "display": "prolong the agony", "cn": "延长痛苦；让事情更难受"}, "pull|a|face": {"v": "pull", "det": "a", "n": "face", "idiom": "pull a face", "display": "pull a face", "cn": "做鬼脸"}, "pull|the|plug": {"v": "pull", "det": "the", "n": "plug", "idiom": "pull the plug", "display": "pull the plug", "cn": "叫停；拔管"}, "pull|the|punches": {"v": "pull", "det": "the", "n": "punches", "idiom": "pull the punches", "display": "pull the punches", "cn": "留一手；手下留情"}, "pull|the|rug": {"v": "pull", "det": "the", "n": "rug", "idiom": "pull the rug", "display": "pull the rug", "cn": "突然翻脸；釜底抽薪"}, "pull|the|strings": {"v": "pull", "det": "the", "n": "strings", "idiom": "pull the strings", "display": "pull the strings", "cn": "幕后操控；牵线"}, "pull|the|trigger": {"v": "pull", "det": "the", "n": "trigger", "idiom": "pull the trigger", "display": "pull the trigger", "cn": "下决心；扣下扳机"}, "pull|the|wool": {"v": "pull", "det": "the", "n": "wool", "idiom": "pull the wool", "display": "pull the wool", "cn": "蒙蔽；糊弄"}, "pull|your|leg": {"v": "pull", "det": "your", "n": "leg", "idiom": "pull your leg", "display": "pull your leg", "cn": "开玩笑；逗你玩"}, "pull|your|weight": {"v": "pull", "det": "your", "n": "weight", "idiom": "pull your weight", "display": "pull your weight", "cn": "尽本分；出份力"}, "puncture|the|bubble": {"v": "puncture", "det": "the", "n": "bubble", "idiom": "puncture the bubble", "display": "puncture the bubble", "cn": "戳破泡沫；打破幻想"}, "push|the|boundaries": {"v": "push", "det": "the", "n": "boundaries", "idiom": "push the boundaries", "display": "push the boundaries", "cn": "突破极限；挑战边界"}, "push|the|button": {"v": "push", "det": "the", "n": "button", "idiom": "push the button", "display": "push the button", "cn": "按下按钮；采取行动"}, "push|the|envelope": {"v": "push", "det": "the", "n": "envelope", "idiom": "push the envelope", "display": "push the envelope", "cn": "挑战极限；大胆创新"}, "push|your|luck": {"v": "push", "det": "your", "n": "luck", "idiom": "push your luck", "display": "push your luck", "cn": "得寸进尺；冒不必要的险"}, "queer|the|pitch": {"v": "queer", "det": "the", "n": "pitch", "idiom": "queer the pitch", "display": "queer the pitch", "cn": "搅局；破坏计划"}, "rack|your|brains": {"v": "rack", "det": "your", "n": "brains", "idiom": "rack your brains", "display": "rack your brains", "cn": "绞尽脑汁"}, "raise|a|laugh": {"v": "raise", "det": "a", "n": "laugh", "idiom": "raise a laugh", "display": "raise a laugh", "cn": "逗人发笑"}, "raise|a|smile": {"v": "raise", "det": "a", "n": "smile", "idiom": "raise a smile", "display": "raise a smile", "cn": "让人微笑"}, "raise|the|alarm": {"v": "raise", "det": "the", "n": "alarm", "idiom": "raise the alarm", "display": "raise the alarm", "cn": "拉响警报；预警"}, "raise|the|bar": {"v": "raise", "det": "the", "n": "bar", "idiom": "raise the bar", "display": "raise the bar", "cn": "抬高门槛；提高标准"}, "raise|the|curtain": {"v": "raise", "det": "the", "n": "curtain", "idiom": "raise the curtain", "display": "raise the curtain", "cn": "揭开帷幕；开场"}, "raise|the|question": {"v": "raise", "det": "the", "n": "question", "idiom": "raise the question", "display": "raise the question", "cn": "提出问题"}, "raise|the|roof": {"v": "raise", "det": "the", "n": "roof", "idiom": "raise the roof", "display": "raise the roof", "cn": "闹翻天；嗨翻全场"}, "raise|the|stakes": {"v": "raise", "det": "the", "n": "stakes", "idiom": "raise the stakes", "display": "raise the stakes", "cn": "加大赌注；提高风险"}, "raise|the|temperature": {"v": "raise", "det": "the", "n": "temperature", "idiom": "raise the temperature", "display": "raise the temperature", "cn": "火上浇油；让气氛更紧张"}, "raise|your|eyebrows": {"v": "raise", "det": "your", "n": "eyebrows", "idiom": "raise your eyebrows", "display": "raise your eyebrows", "cn": "扬眉毛；诧异"}, "raise|your|head": {"v": "raise", "det": "your", "n": "head", "idiom": "raise your head", "display": "raise your head", "cn": "抬起头来；振作"}, "raise|your|sights": {"v": "raise", "det": "your", "n": "sights", "idiom": "raise your sights", "display": "raise your sights", "cn": "志存高远"}, "raise|your|spirits": {"v": "raise", "det": "your", "n": "spirits", "idiom": "raise your spirits", "display": "raise your spirits", "cn": "让人振奋"}, "raise|your|voice": {"v": "raise", "det": "your", "n": "voice", "idiom": "raise your voice", "display": "raise your voice", "cn": "提高嗓门；大声说"}, "rattle|the|cage": {"v": "rattle", "det": "the", "n": "cage", "idiom": "rattle the cage", "display": "rattle the cage", "cn": "挑衅；搅动既有秩序"}, "read|the|room": {"v": "read", "det": "the", "n": "room", "idiom": "read the room", "display": "read the room", "cn": "看懂气氛；察言观色"}, "rear|your|head": {"v": "rear", "det": "your", "n": "head", "idiom": "rear your head", "display": "rear your head", "cn": "抬头；冒头"}, "recharge|your|batteries": {"v": "recharge", "det": "your", "n": "batteries", "idiom": "recharge your batteries", "display": "recharge your batteries", "cn": "充电；恢复精力"}, "refresh|your|memory": {"v": "refresh", "det": "your", "n": "memory", "idiom": "refresh your memory", "display": "refresh your memory", "cn": "唤醒记忆；复习"}, "return|the|compliment": {"v": "return", "det": "the", "n": "compliment", "idiom": "return the compliment", "display": "return the compliment", "cn": "以礼还礼；回敬"}, "ride|the|storm": {"v": "ride", "det": "the", "n": "storm", "idiom": "ride the storm", "display": "ride the storm", "cn": "挺过风暴；撑住"}, "ride|the|wave": {"v": "ride", "det": "the", "n": "wave", "idiom": "ride the wave", "display": "ride the wave", "cn": "乘势而上"}, "ring|a|bell": {"v": "ring", "det": "a", "n": "bell", "idiom": "ring a bell", "display": "ring a bell", "cn": "听着耳熟"}, "ring|the|changes": {"v": "ring", "det": "the", "n": "changes", "idiom": "ring the changes", "display": "ring the changes", "cn": "做出改变；推陈出新"}, "risk|your|neck": {"v": "risk", "det": "your", "n": "neck", "idiom": "risk your neck", "display": "risk your neck", "cn": "冒大险"}, "rock|the|boat": {"v": "rock", "det": "the", "n": "boat", "idiom": "rock the boat", "display": "rock the boat", "cn": "惹麻烦；搅局"}, "rock|the|cradle": {"v": "rock", "det": "the", "n": "cradle", "idiom": "rock the cradle", "display": "rock the cradle", "cn": "守护；坐镇"}, "roll|the|credits": {"v": "roll", "det": "the", "n": "credits", "idiom": "roll the credits", "display": "roll the credits", "cn": "开始负责；担起大任"}, "roll|the|dice": {"v": "roll", "det": "the", "n": "dice", "idiom": "roll the dice", "display": "roll the dice", "cn": "碰运气；冒险一试"}, "ruffle|your|feathers": {"v": "ruffle", "det": "your", "n": "feathers", "idiom": "ruffle your feathers", "display": "ruffle your feathers", "cn": "让你心里不痛快；惹恼"}, "rule|the|roost": {"v": "rule", "det": "the", "n": "roost", "idiom": "rule the roost", "display": "rule the roost", "cn": "当家作主"}, "run|a|mile": {"v": "run", "det": "a", "n": "mile", "idiom": "run a mile", "display": "run a mile", "cn": "撒腿就跑；避之不及"}, "run|the|gamut": {"v": "run", "det": "the", "n": "gamut", "idiom": "run the gamut", "display": "run the gamut", "cn": "无所不包；从……到……"}, "run|the|gauntlet": {"v": "run", "det": "the", "n": "gauntlet", "idiom": "run the gauntlet", "display": "run the gauntlet", "cn": "过五关斩六将；挨尽刁难"}, "run|the|risk": {"v": "run", "det": "the", "n": "risk", "idiom": "run the risk", "display": "run the risk", "cn": "冒险；冒风险"}, "run|the|show": {"v": "run", "det": "the", "n": "show", "idiom": "run the show", "display": "run the show", "cn": "主持大局；掌控一切"}, "run|your|course": {"v": "run", "det": "your", "n": "course", "idiom": "run your course", "display": "run your course", "cn": "走到尽头；自然结束"}, "save|the|day": {"v": "save", "det": "the", "n": "day", "idiom": "save the day", "display": "save the day", "cn": "救场；扭转局面"}, "save|the|situation": {"v": "save", "det": "the", "n": "situation", "idiom": "save the situation", "display": "save the situation", "cn": "挽救局面"}, "save|your|bacon": {"v": "save", "det": "your", "n": "bacon", "idiom": "save your bacon", "display": "save your bacon", "cn": "让你脱身；救你一命"}, "save|your|face": {"v": "save", "det": "your", "n": "face", "idiom": "save your face", "display": "save your face", "cn": "挽回面子"}, "save|your|skin": {"v": "save", "det": "your", "n": "skin", "idiom": "save your skin", "display": "save your skin", "cn": "保命；自保"}, "say|the|word": {"v": "say", "det": "the", "n": "word", "idiom": "say the word", "display": "say the word", "cn": "开口说一声；下个令"}, "say|your|piece": {"v": "say", "det": "your", "n": "piece", "idiom": "say your piece", "display": "say your piece", "cn": "把话说完；表明立场"}, "scrape|the|barrel": {"v": "scrape", "det": "the", "n": "barrel", "idiom": "scrape the barrel", "display": "scrape the barrel", "cn": "退而求其次；用最差选项"}, "scratch|the|surface": {"v": "scratch", "det": "the", "n": "surface", "idiom": "scratch the surface", "display": "scratch the surface", "cn": "触及皮毛；只是开始"}, "scratch|your|head": {"v": "scratch", "det": "your", "n": "head", "idiom": "scratch your head", "display": "scratch your head", "cn": "挠头；困惑"}, "seal|the|deal": {"v": "seal", "det": "the", "n": "deal", "idiom": "seal the deal", "display": "seal the deal", "cn": "成交；敲定"}, "search|your|conscience": {"v": "search", "det": "your", "n": "conscience", "idiom": "search your conscience", "display": "search your conscience", "cn": "扪心自问"}, "search|your|heart": {"v": "search", "det": "your", "n": "heart", "idiom": "search your heart", "display": "search your heart", "cn": "扪心自问；自问内心"}, "search|your|soul": {"v": "search", "det": "your", "n": "soul", "idiom": "search your soul", "display": "search your soul", "cn": "反思灵魂；扪心自问"}, "see|the|light": {"v": "see", "det": "the", "n": "light", "idiom": "see the light", "display": "see the light", "cn": "恍然大悟；开窍"}, "see|the|world": {"v": "see", "det": "the", "n": "world", "idiom": "see the world", "display": "see the world", "cn": "看世界；闯荡"}, "see|your|sights": {"v": "see", "det": "your", "n": "sights", "idiom": "see your sights", "display": "see your sights", "cn": "看尽风景名胜"}, "sell|your|soul": {"v": "sell", "det": "your", "n": "soul", "idiom": "sell your soul", "display": "sell your soul", "cn": "出卖灵魂；为了利益放弃原则"}, "serve|the|purpose": {"v": "serve", "det": "the", "n": "purpose", "idiom": "serve the purpose", "display": "serve the purpose", "cn": "够用；管用"}, "serve|your|turn": {"v": "serve", "det": "your", "n": "turn", "idiom": "serve your turn", "display": "serve your turn", "cn": "派上用场"}, "set|the|pace": {"v": "set", "det": "the", "n": "pace", "idiom": "set the pace", "display": "set the pace", "cn": "定调；带节奏"}, "set|the|record": {"v": "set", "det": "the", "n": "record", "idiom": "set the record", "display": "set the record", "cn": "打破纪录；定调"}, "set|the|scene": {"v": "set", "det": "the", "n": "scene", "idiom": "set the scene", "display": "set the scene", "cn": "铺垫；营造氛围"}, "set|the|stage": {"v": "set", "det": "the", "n": "stage", "idiom": "set the stage", "display": "set the stage", "cn": "为……打基础；拉开序幕"}, "set|the|tone": {"v": "set", "det": "the", "n": "tone", "idiom": "set the tone", "display": "set the tone", "cn": "定调子；奠定基调"}, "settle|a|score": {"v": "settle", "det": "a", "n": "score", "idiom": "settle a score", "display": "settle a score", "cn": "算旧账；报复"}, "shake|the|tree": {"v": "shake", "det": "the", "n": "tree", "idiom": "shake the tree", "display": "shake the tree", "cn": "搅动局势；挑起变革"}, "shake|your|fist": {"v": "shake", "det": "your", "n": "fist", "idiom": "shake your fist", "display": "shake your fist", "cn": "挥拳；表达愤怒"}, "shake|your|head": {"v": "shake", "det": "your", "n": "head", "idiom": "shake your head", "display": "shake your head", "cn": "摇头；不同意"}, "shift|the|focus": {"v": "shift", "det": "the", "n": "focus", "idiom": "shift the focus", "display": "shift the focus", "cn": "转移焦点"}, "shift|the|goalposts": {"v": "shift", "det": "the", "n": "goalposts", "idiom": "shift the goalposts", "display": "shift the goalposts", "cn": "临阵改规则"}, "shift|your|ground": {"v": "shift", "det": "your", "n": "ground", "idiom": "shift your ground", "display": "shift your ground", "cn": "改变立场"}, "shoot|the|breeze": {"v": "shoot", "det": "the", "n": "breeze", "idiom": "shoot the breeze", "display": "shoot the breeze", "cn": "闲聊；扯淡"}, "shoot|the|lights": {"v": "shoot", "det": "the", "n": "lights", "idiom": "shoot the lights", "display": "shoot the lights", "cn": "闯红灯"}, "shoot|your|bolt": {"v": "shoot", "det": "your", "n": "bolt", "idiom": "shoot your bolt", "display": "shoot your bolt", "cn": "用尽手段；黔驴技穷"}, "show|a|leg": {"v": "show", "det": "a", "n": "leg", "idiom": "show a leg", "display": "show a leg", "cn": "起床；打起精神"}, "show|your|face": {"v": "show", "det": "your", "n": "face", "idiom": "show your face", "display": "show your face", "cn": "露面；公开出现"}, "show|your|teeth": {"v": "show", "det": "your", "n": "teeth", "idiom": "show your teeth", "display": "show your teeth", "cn": "露出獠牙；威慑"}, "shut|your|mouth": {"v": "shut", "det": "your", "n": "mouth", "idiom": "shut your mouth", "display": "shut your mouth", "cn": "闭嘴"}, "sign|the|pledge": {"v": "sign", "det": "the", "n": "pledge", "idiom": "sign the pledge", "display": "sign the pledge", "cn": "签字承诺（戒酒等）"}, "sing|your|praises": {"v": "sing", "det": "your", "n": "praises", "idiom": "sing your praises", "display": "sing your praises", "cn": "大加赞扬"}, "sink|your|differences": {"v": "sink", "det": "your", "n": "differences", "idiom": "sink your differences", "display": "sink your differences", "cn": "捐弃成见；求同存异"}, "smell|a|rat": {"v": "smell", "det": "a", "n": "rat", "idiom": "smell a rat", "display": "smell a rat", "cn": "觉得不对劲；起疑"}, "snap|your|fingers": {"v": "snap", "det": "your", "n": "fingers", "idiom": "snap your fingers", "display": "snap your fingers", "cn": "打响指；打一个响指"}, "sound|the|alarm": {"v": "sound", "det": "the", "n": "alarm", "idiom": "sound the alarm", "display": "sound the alarm", "cn": "拉响警报；预警"}, "sound|the|horn": {"v": "sound", "det": "the", "n": "horn", "idiom": "sound the horn", "display": "sound the horn", "cn": "鸣笛；鸣响"}, "spare|your|blushes": {"v": "spare", "det": "your", "n": "blushes", "idiom": "spare your blushes", "display": "spare your blushes", "cn": "免得你尴尬"}, "spare|your|feelings": {"v": "spare", "det": "your", "n": "feelings", "idiom": "spare your feelings", "display": "spare your feelings", "cn": "顾及你的面子"}, "speak|your|mind": {"v": "speak", "det": "your", "n": "mind", "idiom": "speak your mind", "display": "speak your mind", "cn": "说出心里话"}, "spend|a|penny": {"v": "spend", "det": "a", "n": "penny", "idiom": "spend a penny", "display": "spend a penny", "cn": "上厕所（英式委婉）"}, "spike|your|drink": {"v": "spike", "det": "your", "n": "drink", "idiom": "spike your drink", "display": "spike your drink", "cn": "饮料里下药"}, "spike|your|guns": {"v": "spike", "det": "your", "n": "guns", "idiom": "spike your guns", "display": "spike your guns", "cn": "挫败你的计划"}, "spill|the|beans": {"v": "spill", "det": "the", "n": "beans", "idiom": "spill the beans", "display": "spill the beans", "cn": "说漏嘴；泄密"}, "spill|the|tea": {"v": "spill", "det": "the", "n": "tea", "idiom": "spill the tea", "display": "spill the tea", "cn": "八卦；分享内幕"}, "spin|a|yarn": {"v": "spin", "det": "a", "n": "yarn", "idiom": "spin a yarn", "display": "spin a yarn", "cn": "编故事；讲故事"}, "split|the|differences": {"v": "split", "det": "the", "n": "differences", "idiom": "split the differences", "display": "split the differences", "cn": "折中；各让一步"}, "split|your|sides": {"v": "split", "det": "your", "n": "sides", "idiom": "split your sides", "display": "split your sides", "cn": "笑得前仰后合"}, "spread|your|wings": {"v": "spread", "det": "your", "n": "wings", "idiom": "spread your wings", "display": "spread your wings", "cn": "展翅高飞；尝试新事物"}, "spring|a|leak": {"v": "spring", "det": "a", "n": "leak", "idiom": "spring a leak", "display": "spring a leak", "cn": "突然漏了；出问题"}, "square|the|circle": {"v": "square", "det": "the", "n": "circle", "idiom": "square the circle", "display": "square the circle", "cn": "做不可能的事"}, "stake|a|claim": {"v": "stake", "det": "a", "n": "claim", "idiom": "stake a claim", "display": "stake a claim", "cn": "宣示主权；表明立场"}, "stand|the|pace": {"v": "stand", "det": "the", "n": "pace", "idiom": "stand the pace", "display": "stand the pace", "cn": "扛得住节奏"}, "stay|the|course": {"v": "stay", "det": "the", "n": "course", "idiom": "stay the course", "display": "stay the course", "cn": "坚持到底"}, "steal|the|show": {"v": "steal", "det": "the", "n": "show", "idiom": "steal the show", "display": "steal the show", "cn": "抢风头；成最大亮点"}, "stem|the|tide": {"v": "stem", "det": "the", "n": "tide", "idiom": "stem the tide", "display": "stem the tide", "cn": "遏制势头"}, "stick|the|landing": {"v": "stick", "det": "the", "n": "landing", "idiom": "stick the landing", "display": "stick the landing", "cn": "稳稳落地；漂亮收尾"}, "stir|your|blood": {"v": "stir", "det": "your", "n": "blood", "idiom": "stir your blood", "display": "stir your blood", "cn": "让你热血沸腾"}, "stop|the|rot": {"v": "stop", "det": "the", "n": "rot", "idiom": "stop the rot", "display": "stop the rot", "cn": "阻止恶化"}, "strengthen|your|hand": {"v": "strengthen", "det": "your", "n": "hand", "idiom": "strengthen your hand", "display": "strengthen your hand", "cn": "增强你的筹码"}, "stretch|a|point": {"v": "stretch", "det": "a", "n": "point", "idiom": "stretch a point", "display": "stretch a point", "cn": "稍微夸张；破例通融"}, "stretch|your|legs": {"v": "stretch", "det": "your", "n": "legs", "idiom": "stretch your legs", "display": "stretch your legs", "cn": "散散步；活动活动"}, "strike|a|bargain": {"v": "strike", "det": "a", "n": "bargain", "idiom": "strike a bargain", "display": "strike a bargain", "cn": "成交；谈成"}, "strike|a|pose": {"v": "strike", "det": "a", "n": "pose", "idiom": "strike a pose", "display": "strike a pose", "cn": "摆姿势"}, "strike|a/the|balance": {"v": "strike", "det": "a/the", "n": "balance", "idiom": "strike a/the balance", "display": "strike a/the balance", "cn": "取得平衡；折中"}, "strike|a/the|chord": {"v": "strike", "det": "a/the", "n": "chord", "idiom": "strike a/the chord", "display": "strike a/the chord", "cn": "引起共鸣"}, "strike|the|iron": {"v": "strike", "det": "the", "n": "iron", "idiom": "strike the iron", "display": "strike the iron", "cn": "趁热打铁"}, "strike|the|match": {"v": "strike", "det": "the", "n": "match", "idiom": "strike the match", "display": "strike the match", "cn": "点燃火种；启动"}, "strike|the|pose": {"v": "strike", "det": "the", "n": "pose", "idiom": "strike the pose", "display": "strike the pose", "cn": "摆出架势"}, "sugar|the|pill": {"v": "sugar", "det": "the", "n": "pill", "idiom": "sugar the pill", "display": "sugar the pill", "cn": "给苦药裹糖衣；让坏事好接受点"}, "swallow|the|bait": {"v": "swallow", "det": "the", "n": "bait", "idiom": "swallow the bait", "display": "swallow the bait", "cn": "上钩；中计"}, "swallow|the|pill": {"v": "swallow", "det": "the", "n": "pill", "idiom": "swallow the pill", "display": "swallow the pill", "cn": "咽下这口气；接受不情愿的事"}, "swallow|the|pride": {"v": "swallow", "det": "the", "n": "pride", "idiom": "swallow the pride", "display": "swallow the pride", "cn": "放下身段"}, "swallow|your|pride": {"v": "swallow", "det": "your", "n": "pride", "idiom": "swallow your pride", "display": "swallow your pride", "cn": "放下自尊；放低姿态"}, "sweep|the|board": {"v": "sweep", "det": "the", "n": "board", "idiom": "sweep the board", "display": "sweep the board", "cn": "大获全胜；横扫"}, "sweeten|the|pill": {"v": "sweeten", "det": "the", "n": "pill", "idiom": "sweeten the pill", "display": "sweeten the pill", "cn": "让坏消息好接受点"}, "take|a|bath": {"v": "take", "det": "a", "n": "bath", "idiom": "take a bath", "display": "take a bath", "cn": "亏大钱"}, "take|a|butcher": {"v": "take", "det": "a", "n": "butcher", "idiom": "take a butcher", "display": "take a butcher", "cn": "搞砸（粗俗）"}, "take|a|dive": {"v": "take", "det": "a", "n": "dive", "idiom": "take a dive", "display": "take a dive", "cn": "冒险；豁出去"}, "take|a|hint": {"v": "take", "det": "a", "n": "hint", "idiom": "take a hint", "display": "take a hint", "cn": "听出暗示；知趣"}, "take|a|joke": {"v": "take", "det": "a", "n": "joke", "idiom": "take a joke", "display": "take a joke", "cn": "开得起玩笑"}, "take|a|raincheck": {"v": "take", "det": "a", "n": "raincheck", "idiom": "take a raincheck", "display": "take a raincheck", "cn": "改天吧；下次再说"}, "take|a|stand": {"v": "take", "det": "a", "n": "stand", "idiom": "take a stand", "display": "take a stand", "cn": "表明立场；站出来"}, "take|a|walk": {"v": "take", "det": "a", "n": "walk", "idiom": "take a walk", "display": "take a walk", "cn": "走开；离开"}, "take|the|bait": {"v": "take", "det": "the", "n": "bait", "idiom": "take the bait", "display": "take the bait", "cn": "上钩；中招"}, "take|the|biscuit": {"v": "take", "det": "the", "n": "biscuit", "idiom": "take the biscuit", "display": "take the biscuit", "cn": "太过分了；令人咋舌"}, "take|the|cake": {"v": "take", "det": "the", "n": "cake", "idiom": "take the cake", "display": "take the cake", "cn": "无人能及；荒唐透顶"}, "take|the|fall": {"v": "take", "det": "the", "n": "fall", "idiom": "take the fall", "display": "take the fall", "cn": "背黑锅；承担责任"}, "take|the|floor": {"v": "take", "det": "the", "n": "floor", "idiom": "take the floor", "display": "take the floor", "cn": "起立发言"}, "take|the|heat": {"v": "take", "det": "the", "n": "heat", "idiom": "take the heat", "display": "take the heat", "cn": "顶住压力"}, "take|the|helm": {"v": "take", "det": "the", "n": "helm", "idiom": "take the helm", "display": "take the helm", "cn": "掌舵；担任领导"}, "take|the|initiative": {"v": "take", "det": "the", "n": "initiative", "idiom": "take the initiative", "display": "take the initiative", "cn": "主动出击；牵头"}, "take|the|leap": {"v": "take", "det": "the", "n": "leap", "idiom": "take the leap", "display": "take the leap", "cn": "孤注一掷；迈出关键一步"}, "take|the|liberty": {"v": "take", "det": "the", "n": "liberty", "idiom": "take the liberty", "display": "take the liberty", "cn": "冒昧；擅自"}, "take|the|mickey": {"v": "take", "det": "the", "n": "mickey", "idiom": "take the mickey", "display": "take the mickey", "cn": "取笑；挖苦"}, "take|the|piss": {"v": "take", "det": "the", "n": "piss", "idiom": "take the piss", "display": "take the piss", "cn": "开玩笑；挖苦"}, "take|the|pledge": {"v": "take", "det": "the", "n": "pledge", "idiom": "take the pledge", "display": "take the pledge", "cn": "许下庄严承诺"}, "take|the|plunge": {"v": "take", "det": "the", "n": "plunge", "idiom": "take the plunge", "display": "take the plunge", "cn": "下定决心；豁出去"}, "take|the|rap": {"v": "take", "det": "the", "n": "rap", "idiom": "take the rap", "display": "take the rap", "cn": "背锅；挨罚"}, "take|the|reins": {"v": "take", "det": "the", "n": "reins", "idiom": "take the reins", "display": "take the reins", "cn": "执掌；接管"}, "take|the|stand": {"v": "take", "det": "the", "n": "stand", "idiom": "take the stand", "display": "take the stand", "cn": "出庭作证"}, "take|the|view": {"v": "take", "det": "the", "n": "view", "idiom": "take the view", "display": "take the view", "cn": "持……观点"}, "take|the|wheel": {"v": "take", "det": "the", "n": "wheel", "idiom": "take the wheel", "display": "take the wheel", "cn": "接管；掌舵"}, "take|your|chances": {"v": "take", "det": "your", "n": "chances", "idiom": "take your chances", "display": "take your chances", "cn": "碰碰运气"}, "take|your|course": {"v": "take", "det": "your", "n": "course", "idiom": "take your course", "display": "take your course", "cn": "走完自然过程"}, "take|your|medicine": {"v": "take", "det": "your", "n": "medicine", "idiom": "take your medicine", "display": "take your medicine", "cn": "自食其果；认罚"}, "take|your|part": {"v": "take", "det": "your", "n": "part", "idiom": "take your part", "display": "take your part", "cn": "扮演角色"}, "take|your|point": {"v": "take", "det": "your", "n": "point", "idiom": "take your point", "display": "take your point", "cn": "接受你的看法"}, "take|your|side": {"v": "take", "det": "your", "n": "side", "idiom": "take your side", "display": "take your side", "cn": "站在你这边"}, "take|your|temperature": {"v": "take", "det": "your", "n": "temperature", "idiom": "take your temperature", "display": "take your temperature", "cn": "量体温"}, "tear|your|hair": {"v": "tear", "det": "your", "n": "hair", "idiom": "tear your hair", "display": "tear your hair", "cn": "抓狂；崩溃"}, "tell|the|world": {"v": "tell", "det": "the", "n": "world", "idiom": "tell the world", "display": "tell the world", "cn": "昭告天下"}, "test|the|limits": {"v": "test", "det": "the", "n": "limits", "idiom": "test the limits", "display": "test the limits", "cn": "试探极限"}, "test|the|waters": {"v": "test", "det": "the", "n": "waters", "idiom": "test the waters", "display": "test the waters", "cn": "试水；探探口风"}, "throw|a|fit": {"v": "throw", "det": "a", "n": "fit", "idiom": "throw a fit", "display": "throw a fit", "cn": "大发雷霆"}, "throw|a|tantrum": {"v": "throw", "det": "a", "n": "tantrum", "idiom": "throw a tantrum", "display": "throw a tantrum", "cn": "耍脾气"}, "throw|a|wobbly": {"v": "throw", "det": "a", "n": "wobbly", "idiom": "throw a wobbly", "display": "throw a wobbly", "cn": "大发雷霆；情绪失控"}, "throw|the|dice": {"v": "throw", "det": "the", "n": "dice", "idiom": "throw the dice", "display": "throw the dice", "cn": "听天由命；碰运气"}, "throw|the|gauntlet": {"v": "throw", "det": "the", "n": "gauntlet", "idiom": "throw the gauntlet", "display": "throw the gauntlet", "cn": "发出挑战"}, "throw|the|towel": {"v": "throw", "det": "the", "n": "towel", "idiom": "throw the towel", "display": "throw the towel", "cn": "认输；放弃"}, "thumb|a|lift": {"v": "thumb", "det": "a", "n": "lift", "idiom": "thumb a lift", "display": "thumb a lift", "cn": "竖大拇指搭车"}, "tickle|your|fancy": {"v": "tickle", "det": "your", "n": "fancy", "idiom": "tickle your fancy", "display": "tickle your fancy", "cn": "对胃口；讨你喜欢"}, "tie|the|knot": {"v": "tie", "det": "the", "n": "knot", "idiom": "tie the knot", "display": "tie the knot", "cn": "结婚"}, "tie|your|hands": {"v": "tie", "det": "your", "n": "hands", "idiom": "tie your hands", "display": "tie your hands", "cn": "束手束脚"}, "tighten|your|belt": {"v": "tighten", "det": "your", "n": "belt", "idiom": "tighten your belt", "display": "tighten your belt", "cn": "勒紧裤腰带；省吃俭用"}, "tip|the|balance": {"v": "tip", "det": "the", "n": "balance", "idiom": "tip the balance", "display": "tip the balance", "cn": "扭转局势；改变结果"}, "tip|the|scales": {"v": "tip", "det": "the", "n": "scales", "idiom": "tip the scales", "display": "tip the scales", "cn": "起决定性作用"}, "toe|the|line": {"v": "toe", "det": "the", "n": "line", "idiom": "toe the line", "display": "toe the line", "cn": "循规蹈矩；服从"}, "toe|the|mark": {"v": "toe", "det": "the", "n": "mark", "idiom": "toe the mark", "display": "toe the mark", "cn": "达标；符合要求"}, "toss|a|coin": {"v": "toss", "det": "a", "n": "coin", "idiom": "toss a coin", "display": "toss a coin", "cn": "扔硬币决定"}, "touch|a/the|nerve": {"v": "touch", "det": "a/the", "n": "nerve", "idiom": "touch a/the nerve", "display": "touch a/the nerve", "cn": "戳中痛处"}, "touch|your|forelock": {"v": "touch", "det": "your", "n": "forelock", "idiom": "touch your forelock", "display": "touch your forelock", "cn": "点头哈腰；卑躬屈膝"}, "tread|the|boards": {"v": "tread", "det": "the", "n": "boards", "idiom": "tread the boards", "display": "tread the boards", "cn": "登台表演"}, "try|your|damnedest": {"v": "try", "det": "your", "n": "damnedest", "idiom": "try your damnedest", "display": "try your damnedest", "cn": "拼尽全力"}, "try|your|hand": {"v": "try", "det": "your", "n": "hand", "idiom": "try your hand", "display": "try your hand", "cn": "小试牛刀"}, "try|your|luck": {"v": "try", "det": "your", "n": "luck", "idiom": "try your luck", "display": "try your luck", "cn": "碰运气"}, "try|your|utmost": {"v": "try", "det": "your", "n": "utmost", "idiom": "try your utmost", "display": "try your utmost", "cn": "竭尽所能"}, "tug|your|forelock": {"v": "tug", "det": "your", "n": "forelock", "idiom": "tug your forelock", "display": "tug your forelock", "cn": "点头哈腰；卑躬屈膝"}, "tug|your|heartstrings": {"v": "tug", "det": "your", "n": "heartstrings", "idiom": "tug your heartstrings", "display": "tug your heartstrings", "cn": "牵动心弦"}, "turn|the|corner": {"v": "turn", "det": "the", "n": "corner", "idiom": "turn the corner", "display": "turn the corner", "cn": "转危为安；度过难关"}, "turn|the|key": {"v": "turn", "det": "the", "n": "key", "idiom": "turn the key", "display": "turn the key", "cn": "启动；扣下扳机"}, "turn|the|page": {"v": "turn", "det": "the", "n": "page", "idiom": "turn the page", "display": "turn the page", "cn": "翻开新篇章"}, "turn|the|screw": {"v": "turn", "det": "the", "n": "screw", "idiom": "turn the screw", "display": "turn the screw", "cn": "施压；加码"}, "turn|the|tables": {"v": "turn", "det": "the", "n": "tables", "idiom": "turn the tables", "display": "turn the tables", "cn": "扭转局面；反败为胜"}, "turn|the|tide": {"v": "turn", "det": "the", "n": "tide", "idiom": "turn the tide", "display": "turn the tide", "cn": "扭转乾坤"}, "turn|your|head": {"v": "turn", "det": "your", "n": "head", "idiom": "turn your head", "display": "turn your head", "cn": "引人注目；让人回头"}, "twist|the|knife": {"v": "twist", "det": "the", "n": "knife", "idiom": "twist the knife", "display": "twist the knife", "cn": "雪上加霜；伤口上撒盐"}, "twist|your|arm": {"v": "twist", "det": "your", "n": "arm", "idiom": "twist your arm", "display": "twist your arm", "cn": "软磨硬泡；强迫"}, "upset|the|applecart": {"v": "upset", "det": "the", "n": "applecart", "idiom": "upset the applecart", "display": "upset the applecart", "cn": "打破计划；搅局"}, "use|your|loaf": {"v": "use", "det": "your", "n": "loaf", "idiom": "use your loaf", "display": "use your loaf", "cn": "动动脑子"}, "walk|a|tightrope": {"v": "walk", "det": "a", "n": "tightrope", "idiom": "walk a tightrope", "display": "walk a tightrope", "cn": "走钢丝；如履薄冰"}, "walk|the|line": {"v": "walk", "det": "the", "n": "line", "idiom": "walk the line", "display": "walk the line", "cn": "走中间路线；保持平衡"}, "walk|the|plank": {"v": "walk", "det": "the", "n": "plank", "idiom": "walk the plank", "display": "walk the plank", "cn": "被逼下台；走投无路"}, "walk|the|talk": {"v": "walk", "det": "the", "n": "talk", "idiom": "walk the talk", "display": "walk the talk", "cn": "说到做到；言行一致"}, "waste|your|breath": {"v": "waste", "det": "your", "n": "breath", "idiom": "waste your breath", "display": "waste your breath", "cn": "白费口舌"}, "watch|the|clock": {"v": "watch", "det": "the", "n": "clock", "idiom": "watch the clock", "display": "watch the clock", "cn": "老看表；度日如年"}, "watch|your|step": {"v": "watch", "det": "your", "n": "step", "idiom": "watch your step", "display": "watch your step", "cn": "小心脚下；谨慎"}, "wear|the|pants": {"v": "wear", "det": "the", "n": "pants", "idiom": "wear the pants", "display": "wear the pants", "cn": "当家的；说了算"}, "wear|the|trousers": {"v": "wear", "det": "the", "n": "trousers", "idiom": "wear the trousers", "display": "wear the trousers", "cn": "当家；说了算"}, "weather|the|storm": {"v": "weather", "det": "the", "n": "storm", "idiom": "weather the storm", "display": "weather the storm", "cn": "挺过风暴"}, "weigh|your|words": {"v": "weigh", "det": "your", "n": "words", "idiom": "weigh your words", "display": "weigh your words", "cn": "字斟句酌"}, "wet|your|whistle": {"v": "wet", "det": "your", "n": "whistle", "idiom": "wet your whistle", "display": "wet your whistle", "cn": "喝一口；解解渴"}, "whet|your|appetite": {"v": "whet", "det": "your", "n": "appetite", "idiom": "whet your appetite", "display": "whet your appetite", "cn": "吊胃口"}, "win|the|day": {"v": "win", "det": "the", "n": "day", "idiom": "win the day", "display": "win the day", "cn": "胜出；赢"}, "win|your|heart": {"v": "win", "det": "your", "n": "heart", "idiom": "win your heart", "display": "win your heart", "cn": "赢得你的心"}, "win|your|spurs": {"v": "win", "det": "your", "n": "spurs", "idiom": "win your spurs", "display": "win your spurs", "cn": "赢得声誉；崭露头角"}, "wipe|your|eye": {"v": "wipe", "det": "your", "n": "eye", "idiom": "wipe your eye", "display": "wipe your eye", "cn": "抢了你风头；赢了你"}, "worth|your|salt": {"v": "worth", "det": "your", "n": "salt", "idiom": "worth your salt", "display": "worth your salt", "cn": "称职；够格"}, "wring|your|hands": {"v": "wring", "det": "your", "n": "hands", "idiom": "wring your hands", "display": "wring your hands", "cn": "焦虑；搓手"}, "wring|your|neck": {"v": "wring", "det": "your", "n": "neck", "idiom": "wring your neck", "display": "wring your neck", "cn": "想掐死你（赌气）"}, "zip|your|lip": {"v": "zip", "det": "your", "n": "lip", "idiom": "zip your lip", "display": "zip your lip", "cn": "闭嘴；住口"}}, "_ordered_keys": ["act|your|age", "bare|your|soul", "be|a|devil", "be|a|sport", "be|my|guest", "be|the|end", "be|the|pits", "be|your|scene", "be|your|style", "bear|your|cross", "beat|a|retreat", "beat|the|clock", "beat|the|drum", "beat|the|odds", "beat|the|path", "beat|your|breast", "beg|the|question", "bend|the|knee", "bend|the|rules", "bide|your|time", "bite|the|bullet", "bite|the|dust", "bite|your|fingernails", "bite|your|lip", "bite|your|tongue", "blaze|a/the|trail/path", "blot|your|copybook", "blow|a|fuse", "blow|a|raspberry", "blow|the|cobwebs", "blow|the|gaff", "blow|the|lid", "blow|the|whistle", "blow|your|cover", "blow|your|mind", "blow|your|top", "break|a|leg", "break|the|bank", "break|the|ice", "break|the|mold", "break|the|news", "break|the|silence", "break|the|spell", "break|your|heart", "break|your|words", "breathe|a|word", "bridge|the|gap", "burn|your|boats", "burn|your|bridges", "burn|your|fingers", "bury|the|hatchet", "bust|a|gut", "bust|a|move", "button|your|lips", "buy|a|lemon", "buy|the|farm", "call|a|halt", "call|the|bluff", "call|the|shots", "call|the|tune", "call|your|bluff", "call|your|name", "carry|the|can", "carry|the|day", "carry|the|load", "carry|the|torch", "carry|your|cross", "cast|the|net", "cast|the|stone", "catch|a|cold", "catch|the|break", "catch|the|bug", "catch|the|drift", "catch|the|light", "catch|the|sun", "catch|the|vibe", "catch|the|wave", "catch|your|breath", "catch|your|death", "catch|your|fancy", "chance|your|arm", "change|the|subject", "change|your|tune", "chew|the|fat", "choose|your|moment", "clear|the|air", "clear|the|deck", "clear|your|throat", "clip|the|wings", "close|the|deal", "close|your|mind", "cock|a|snook", "coin|a|phrase", "collect|your|wits", "come|a|cropper", "come|your|way", "concentrate|the|mind", "connect|the|dots", "control|the|pursestrings", "cook|the|books", "cook|your|goose", "cool|your|heels", "cop|an|attitude", "corner|the|market", "cost|the|earth", "count|the|cost", "count|your|blessings", "cover|your|tracks", "crack|a|joke", "crack|the|whip", "cramp|your|style", "cross|the|line", "cross|your|fingers", "cross|your|mind", "cross|your|path", "cut|a|dash", "cut|the|cackle", "cut|the|chase", "cut|the|cord", "cut|the|crap", "cut|the|mustard", "cut|your|losses", "cut|your|teeth", "deliver|the|goods", "die|the|death", "do|a|bunk", "do|a|runner", "do|the|honors", "do|the|job", "do|the|rounds", "do|the|trick", "do|your|bit", "do|your|damnedest", "do|your|homework", "do|your|nut", "do|your|stuff", "do|your|utmost", "do|your|worst", "drag|your|feet", "drag|your|heels", "draw|a|blank", "draw|the|crowd", "draw|the|curtain", "draw|the|line", "drop|a|brick", "drop|a|clanger", "drop|a/the|hint", "drop|the|act", "drop|the|ball", "drop|the|curtain", "drop|the|hammer", "drop|the|subject", "drop|your|aitches", "drown|your|sorrows", "earn|your|keep", "eat|your|words", "enter|your|head", "escape|your|notice", "excuse|my|french", "expose|the|truth", "face|the|facts", "face|the|music", "face|the|truth", "fan|the|embers", "fan|the|fire", "fan|the|flames", "fancy|your|chances", "feather|your|nest", "feel|the|burn", "feel|the|draught", "feel|the|heat", "feel|the|pinch", "feel|the|sting", "feel|your|age", "feel|your|way", "fight|your|corner", "fill|the|bill", "fill|the|void", "fill|your|shoes", "find|your|bearings", "find|your|feet", "find|your|match", "fire|the|imagination", "fit|the|bill", "flex|your|muscles", "flip|the|bird", "flip|the|switch", "flip|your|lid", "fly|a|kite", "fly|the|flag", "foot|the|bill", "force|the|pace", "force|your|hand", "gather|your|wits", "get|a|grip", "get|a|life", "get|the|boot", "get|the|eye", "get|the|hump", "get|the|idea", "get|the|message", "get|the|nod", "get|the|picture", "get|the|point", "get|the|push", "get|the|sack", "get|the|shivers", "get|your|bearings", "get|your|goat", "get|your|meaning", "get|your|oats", "gild|the|lily", "gird|your|lions", "give|a|lead", "give|the|sack", "give|the|slip", "go|the|distance", "go|the|rounds", "grasp|the|nettle", "grease|the|wheels", "grease|your|palm", "grit|your|teeth", "hate|your|guts", "have|a|ball", "have|a|bash", "have|a|blast", "have|a|cow", "have|a|fit", "have|a|fling", "have|a|heart", "have|a|job", "have|the|face", "have|the|nerve", "have|your|moments", "have|your|number", "hedge|your|bets", "hit|the|books", "hit|the|bottle", "hit|the|deck", "hit|the|hay", "hit|the|headlines", "hit|the|jackpot", "hit|the|mark", "hit|the|road", "hit|the|roof", "hit|the|sack", "hit|the|sauce", "hit|the|spot", "hit|the|wall", "hitch|a|lift", "hold|the|ace", "hold|the|fort", "hold|the|line", "hold|the|pursestrings", "hold|the|ring", "hold|your|horses", "hold|your|tongue", "jog|your|memory", "jump|the|fence", "jump|the|gun", "jump|the|lights", "jump|the|queue", "jump|the|shark", "keep|the|faith", "keep|the|peace", "keep|your|distance", "keep|your|head", "kick|the|bucket", "kick|the|habit", "kick|your|heels", "knit|your|brows", "know|the|ropes", "know|the|score", "know|the|source", "know|your|stuff", "labor|the|point", "lay|an|egg", "lay|the|blame", "lay|the|groundwork", "lead|the|way", "learn|the|ropes", "learn|your|lesson", "lend|a|hand", "lend|an|ear", "lick|your|arse", "lick|your|boots", "lick|your|wounds", "lift|a|finger", "lift|the|roof", "light|the|fire", "line|your|pockets", "live|a|lie", "look|a|sight", "look|the|part", "look|your|best", "lose|the|plot", "lose|your|cool", "lose|your|edge", "lose|your|grip", "lose|your|heart", "lose|your|life", "lose|your|marbles", "lose|your|rag", "lose|your|shirt", "lose|your|touch", "lower|your|sights", "make|a|face", "make|a|fortune", "make|a|killing", "make|a|move", "make|a|pitch", "make|a|splash", "make|a|stand", "make|the|cut", "make|the|grade", "make|the|running", "make|the|scene", "make|your|day", "make|your|mark", "make|your|pile", "make|your|point", "mark|your|words", "meet|your|eyes", "meet|your|maker", "meet|your|match", "meet|your|waterloo", "mend|your|ways", "mind|the|gap", "mind|the|store", "mind|your|step", "miss|the|boat", "move|the|goalposts", "move|the|needle", "move|your|bowels", "muddy|the|waters", "mums|the|word", "name|the|day", "oil|the|wheels", "open|the|floodgates", "open|your|eyes", "open|your|mouth", "overshoot|the|mark", "overstep|the|mark", "pack|a|punch", "pack|your|bags", "paint|the|town", "pass|the|buck", "pass|your|time", "pave|the|way", "pay|the|piper", "pay|your|respects", "pay|your|way", "perish|the|thought", "pick|a|fight", "pick|a|quarrel", "pick|the|brain", "pick|the|lock", "pick|the|pace", "pick|your|moment", "pick|your|pocket", "plant|the|seed", "play|the|angles", "play|the|cards", "play|the|field", "play|the|fool", "play|the|game", "play|the|market", "play|your|part", "point|the|finger", "point|the|way", "pop|the|question", "pour|the|tea", "prepare|the|ground", "press|the|flesh", "press|the|issue", "press|the|point", "prime|the|pump", "prolong|the|agony", "pull|a|face", "pull|the|plug", "pull|the|punches", "pull|the|rug", "pull|the|strings", "pull|the|trigger", "pull|the|wool", "pull|your|leg", "pull|your|weight", "puncture|the|bubble", "push|the|boundaries", "push|the|button", "push|the|envelope", "push|your|luck", "queer|the|pitch", "rack|your|brains", "raise|a|laugh", "raise|a|smile", "raise|the|alarm", "raise|the|bar", "raise|the|curtain", "raise|the|question", "raise|the|roof", "raise|the|stakes", "raise|the|temperature", "raise|your|eyebrows", "raise|your|head", "raise|your|sights", "raise|your|spirits", "raise|your|voice", "rattle|the|cage", "read|the|room", "rear|your|head", "recharge|your|batteries", "refresh|your|memory", "return|the|compliment", "ride|the|storm", "ride|the|wave", "ring|a|bell", "ring|the|changes", "risk|your|neck", "rock|the|boat", "rock|the|cradle", "roll|the|credits", "roll|the|dice", "ruffle|your|feathers", "rule|the|roost", "run|a|mile", "run|the|gamut", "run|the|gauntlet", "run|the|risk", "run|the|show", "run|your|course", "save|the|day", "save|the|situation", "save|your|bacon", "save|your|face", "save|your|skin", "say|the|word", "say|your|piece", "scrape|the|barrel", "scratch|the|surface", "scratch|your|head", "seal|the|deal", "search|your|conscience", "search|your|heart", "search|your|soul", "see|the|light", "see|the|world", "see|your|sights", "sell|your|soul", "serve|the|purpose", "serve|your|turn", "set|the|pace", "set|the|record", "set|the|scene", "set|the|stage", "set|the|tone", "settle|a|score", "shake|the|tree", "shake|your|fist", "shake|your|head", "shift|the|focus", "shift|the|goalposts", "shift|your|ground", "shoot|the|breeze", "shoot|the|lights", "shoot|your|bolt", "show|a|leg", "show|your|face", "show|your|teeth", "shut|your|mouth", "sign|the|pledge", "sing|your|praises", "sink|your|differences", "smell|a|rat", "snap|your|fingers", "sound|the|alarm", "sound|the|horn", "spare|your|blushes", "spare|your|feelings", "speak|your|mind", "spend|a|penny", "spike|your|drink", "spike|your|guns", "spill|the|beans", "spill|the|tea", "spin|a|yarn", "split|the|differences", "split|your|sides", "spread|your|wings", "spring|a|leak", "square|the|circle", "stake|a|claim", "stand|the|pace", "stay|the|course", "steal|the|show", "stem|the|tide", "stick|the|landing", "stir|your|blood", "stop|the|rot", "strengthen|your|hand", "stretch|a|point", "stretch|your|legs", "strike|a|bargain", "strike|a|pose", "strike|a/the|balance", "strike|a/the|chord", "strike|the|iron", "strike|the|match", "strike|the|pose", "sugar|the|pill", "swallow|the|bait", "swallow|the|pill", "swallow|the|pride", "swallow|your|pride", "sweep|the|board", "sweeten|the|pill", "take|a|bath", "take|a|butcher", "take|a|dive", "take|a|hint", "take|a|joke", "take|a|raincheck", "take|a|stand", "take|a|walk", "take|the|bait", "take|the|biscuit", "take|the|cake", "take|the|fall", "take|the|floor", "take|the|heat", "take|the|helm", "take|the|initiative", "take|the|leap", "take|the|liberty", "take|the|mickey", "take|the|piss", "take|the|pledge", "take|the|plunge", "take|the|rap", "take|the|reins", "take|the|stand", "take|the|view", "take|the|wheel", "take|your|chances", "take|your|course", "take|your|medicine", "take|your|part", "take|your|point", "take|your|side", "take|your|temperature", "tear|your|hair", "tell|the|world", "test|the|limits", "test|the|waters", "throw|a|fit", "throw|a|tantrum", "throw|a|wobbly", "throw|the|dice", "throw|the|gauntlet", "throw|the|towel", "thumb|a|lift", "tickle|your|fancy", "tie|the|knot", "tie|your|hands", "tighten|your|belt", "tip|the|balance", "tip|the|scales", "toe|the|line", "toe|the|mark", "toss|a|coin", "touch|a/the|nerve", "touch|your|forelock", "tread|the|boards", "try|your|damnedest", "try|your|hand", "try|your|luck", "try|your|utmost", "tug|your|forelock", "tug|your|heartstrings", "turn|the|corner", "turn|the|key", "turn|the|page", "turn|the|screw", "turn|the|tables", "turn|the|tide", "turn|your|head", "twist|the|knife", "twist|your|arm", "upset|the|applecart", "use|your|loaf", "walk|a|tightrope", "walk|the|line", "walk|the|plank", "walk|the|talk", "waste|your|breath", "watch|the|clock", "watch|your|step", "wear|the|pants", "wear|the|trousers", "weather|the|storm", "weigh|your|words", "wet|your|whistle", "whet|your|appetite", "win|the|day", "win|your|heart", "win|your|spurs", "wipe|your|eye", "worth|your|salt", "wring|your|hands", "wring|your|neck", "zip|your|lip"]};</script>
+</head>
+<body>
+  <h1>🧩 Idiom Tetris</h1>
+  <div class="subtitle">v-det-n · 3 falling words = 1 idiom cleared</div>
+
+  <div class="layout">
+    <aside class="side-col left" aria-label="Game info (left)">
+      <div class="mini-stat">
+        <div class="mini-label">Next</div>
+        <canvas id="next-canvas" width="120" height="56"></canvas>
+      </div>
+      <div class="mini-stat">
+        <div class="mini-label">Cleared</div>
+        <div class="mini-val" id="stat-cleared">0</div>
+      </div>
+      <div class="mini-stat">
+        <div class="mini-label">Score</div>
+        <div class="mini-val" id="stat-score">0</div>
+      </div>
+    </aside>
+
+    <div class="board-wrap">
+      <canvas id="board" width="300" height="600"></canvas>
+      <div class="toast-overlay" id="toast">
+        <div class="toast-idiom" id="toast-idiom"></div>
+        <div class="toast-cn" id="toast-cn"></div>
+        <div class="toast-en" id="toast-en"></div>
+      </div>
+    </div>
+
+    <aside class="side-col right" aria-label="Game info (right)">
+      <div class="mini-stat">
+        <div class="mini-label">Level</div>
+        <div class="mini-val" id="stat-level">1</div>
+      </div>
+      <div class="mini-stat legend-mini">
+        <div class="mini-label">Types</div>
+        <div class="legend-row">
+          <span class="swatch" style="background:var(--verb)"></span>
+          <span class="swatch" style="background:var(--det)"></span>
+          <span class="swatch" style="background:var(--noun)"></span>
+        </div>
+      </div>
+      <div class="mini-stat controls-mini">
+        <div class="mini-label">Controls</div>
+        <div class="kbd-row">
+          <kbd>↑</kbd>
+          <kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd>
+          <kbd>␣</kbd>
+          <kbd>P</kbd>
+        </div>
+      </div>
+      <button id="restart" class="restart-mini">Restart</button>
+      <div class="status-mini"><span id="status">playing</span></div>
+    </aside>
+  </div>
+
+<script>
+"use strict";
+
+/* ============================================================
+ *  Idiom Tetris — V-det-N variant
+ *  ------------------------------------------------------------
+ *  ARCHITECTURE
+ *  ------------------------------------------------------------
+ *  This is a single-file HTML+CSS+Canvas game inspired by classic
+ *  Tetris but with a psycholinguistics twist: each falling block
+ *  is a single English word tagged with its part of speech (verb,
+ *  determiner, noun). When the player arranges three blocks in
+ *  the canonical V–det–N order so that they form a known English
+ *  idiom, those blocks clear with a flourish and the idiom's full
+ *  form + Chinese meaning flash on screen as a toast.
+ *
+ *  The idiom pool (611 entries) is precomputed by a Python build
+ *  step and embedded directly into this file as
+ *  `window.__IDIOMS_POOL__` so the game runs from `file://` as
+ *  well as from a static HTTP server. As a fallback it can also
+ *  fetch `idioms_compact.json` next to the HTML.
+ *
+ *  ------------------------------------------------------------
+ *  DATA STRUCTURES
+ *  ------------------------------------------------------------
+ *  POOL = {
+ *    verbs:  [string, ...],                // all verb lemmas
+ *    dets:   [string, ...],                // all determiners (the, a, your, ...)
+ *    nouns:  [string, ...],                // all noun lemmas
+ *    lookup: {                              // key -> {display, cn, en}
+ *      "say|the|word"   -> { display:"say the word", cn:"...", en:"..." },
+ *      ...
+ *    },
+ *    _ordered_keys: ["say|the|word", ...]   // for random sampling
+ *  }
+ *
+ *  GRID  -- 20 x 10 board, each cell is one of:
+ *      { type: 'empty' }
+ *      { type: 'verb' | 'det' | 'noun', word: string, locked: true }
+ *
+ *  PIECE -- currently-falling block:
+ *      { type, word, x, y }                 // x=col, y=row
+ *
+ *  ------------------------------------------------------------
+ *  GAME RULES
+ *  ------------------------------------------------------------
+ *  1. Random words fall (50% verb / 15% det / 35% noun by default).
+ *     With probability P_IDIOM (0.20) the next 3 drops are pulled
+ *     from a single curated idiom so the player can plan.
+ *  2. When a piece locks, `checkIdiomClear()` looks for any v-d-n
+ *     triple in 4 directions (horizontal & vertical), with 0-2
+ *     empty gaps allowed between cells, and a whole-board scan
+ *     catches anything that gravity just lined up.
+ *  3. On a clear: rotate-fade animation -> particles at centroid
+ *     -> +score -> apply gravity -> cascade scan.
+ *  4. Every 8 clears -> level up -> dropInterval shrinks.
+ *  5. Game over if a new piece collides on spawn.
+ *
+ *  ------------------------------------------------------------
+ *  EXTENSION POINTS  (where to hack on the game)
+ *  ------------------------------------------------------------
+ *  - randomWord()          : tune the difficulty / drop-rate curve
+ *  - checkIdiomClear()     : add/relax matching rules (e.g. accept
+ *                            ANY gap length, accept diagonal, etc.)
+ *  - drawCell()            : visual style of the block
+ *  - clearIdiomAt()        : scoring curve + particle effects
+ *  - POOL.verbs/dets/nouns : change the lexical inventory
+ *  - idioms_compact.json   : source of truth for idiom list;
+ *                            regenerating it requires re-running
+ *                            the Python prebuild (see README.md)
+ *  ============================================================ */
+
+const COLS = 13;
+const ROWS = 22;
+let CELL = 50;          // dynamic; recomputed by fitBoard() so the whole 22x7 grid fits the viewport
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+
+/* Next-piece preview refs — declared before fitBoard() because
+ * fitBoard() is invoked at script-eval time and will call drawNext()
+ * to redraw the preview on resize. drawNext() reads these in its
+ * lazy-init block, so they must be hoisted (let bindings). The DOM
+ * lookup itself stays lazy (first call) since #next-canvas is in
+ * the <body> below this script. */
+let nextCanvas, nextCtx, nextTypeBadge;
+
+/* Boot flag — flipped to true at the end of loadPool().then(...).
+ * drawNext() checks this so the early fitBoard() resize path
+ * (which runs at script-eval time, before the `let next` binding
+ * further down has been initialized) doesn't TDZ-crash. We use
+ * a `var` because it sidesteps the temporal dead zone entirely
+ * for primitive reads. */
+var bootComplete = false;
+
+/**
+ * Compute the largest cell size that keeps the entire board visible
+ * inside the current viewport, then resize the canvas accordingly.
+ * Height is the binding constraint (22 rows × CELL must fit in
+ * innerHeight minus the title/subtitle/padding). Width is also capped
+ * to keep the side panels comfortably visible.
+ *
+ * Re-invoked on window resize so the layout stays correct when the
+ * user resizes the browser or rotates the device.
+ */
+function fitBoard() {
+  /* Reserve ~80px for the title, subtitle and body padding, then
+     give the side panels (100px each) the rest of the horizontal
+     budget. The board takes whatever's left. With 10 cols × 22 rows
+     the board is naturally a portrait 5:11. We use a 5:11 aspect
+     hint so cells stay square (wider cells let long words like
+     "clanger" or "embarrassment" fit comfortably). */
+  const HEADER_PX  = 80;
+  const SIDE_PX    = 100 + 100 + 96;     // 2 side-cols + gaps
+  const availH = window.innerHeight - HEADER_PX;
+  const availW = window.innerWidth  - SIDE_PX - 32;   // -32 for body padding
+  /* Pick the cell size that fits the viewport with both constraints.
+     Width-driven limit on narrow windows, height-driven on short ones. */
+  const cellByH = Math.floor(availH / ROWS);
+  const cellByW = Math.floor(availW / COLS);
+  /* Clamp to [28, 44]. On a 1440x900 window: cellByH = 37, cellByW
+     (13 cols) = ~84 → height wins → 37px cells → board 481x814.
+     On a 1080p window: 1000/22 ≈ 45, cap to 44 → board 572x968. */
+  CELL = Math.max(28, Math.min(44, cellByH, cellByW));
+  canvas.width  = COLS * CELL;
+  canvas.height = ROWS * CELL;
+  /* If the next-piece preview canvas already exists, redraw it so
+     the cell size change propagates. */
+  if (typeof drawNext === 'function') drawNext();
+}
+fitBoard();
+window.addEventListener('resize', fitBoard);
+
+/* ---------- Next-piece preview ----------
+ * Renders the next block on a small side canvas so the player can
+ * plan ahead. The next canvas is sized 180x60 (px) in HTML; we
+ * fit a single cell into it with a 6px margin.
+ * ------------------------------------- */
+/* nextCanvas / nextCtx / nextTypeBadge are declared near the top
+ * of this script (above fitBoard) so they're already initialized
+ * when fitBoard() first runs and calls drawNext() to repaint the
+ * side panel on resize. The DOM lookup stays lazy since #next-canvas
+ * is in the <body> after this script. */
+// (declarations hoisted)
+
+/**
+ * Repaints the next-piece side panel.
+ * Must be called every time `next` changes (i.e. inside spawnNext).
+ * Also updates the small color-coded type badge ("verb" / "det" / "noun").
+ */
+function drawNext() {
+  /* Lazy init: fetch DOM refs on first call. Safe because by the
+     time drawNext is reached, the <body> has been parsed. */
+  if (!nextCanvas) {
+    nextCanvas = document.getElementById('next-canvas');
+    nextCtx    = nextCanvas.getContext('2d');
+    nextTypeBadge = document.getElementById('next-type');
+  }
+  /* Clear preview */
+  nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+  /* Pre-boot guard: `next` is a `let` binding declared further down.
+   * Until the boot promise resolves (loadPool() → restart()), the
+   * binding lives in the TDZ — and `typeof` on a TDZ `let` actually
+   * throws in strict mode. So just no-op before boot completes. */
+  if (!bootComplete || !next) {
+    if (nextTypeBadge) {
+      nextTypeBadge.textContent = '—';
+      nextTypeBadge.className = 'type-badge';
+    }
+    return;
+  }
+  /* Render the upcoming block in the center of the small canvas */
+  const margin = 6;
+  const cellSize = Math.min(
+    nextCanvas.width - 2 * margin,
+    nextCanvas.height - 2 * margin
+  );
+  const x = (nextCanvas.width - cellSize) / 2;
+  const y = (nextCanvas.height - cellSize) / 2;
+  /* Reuse the same drawCell logic so colors / fonts match the main board */
+  drawCellOnCtx(nextCtx, next.type, next.word, x, y, cellSize, 1, false);
+  /* Update the type badge (only if the badge element still exists —
+   * the redesigned mini side panel intentionally drops the badge to
+   * save horizontal space). */
+  if (nextTypeBadge) {
+    nextTypeBadge.textContent = next.type;
+    nextTypeBadge.className = `type-badge ${next.type}`;
+  }
+}
+
+/**
+ * Variant of `drawCell()` that takes an explicit Canvas context.
+ * Lets us reuse the exact same visual style for the next-piece
+ * preview canvas as for the main board.
+ *
+ * @param {CanvasRenderingContext2D} c  - target context
+ * @param {string} type                 - 'verb' | 'det' | 'noun' | 'empty'
+ * @param {string} word                 - the word to draw inside the cell
+ * @param {number} x,y                  - top-left pixel coords on `c`
+ * @param {number} size                 - cell side length in px
+ * @param {number} [alpha=1]            - global alpha multiplier
+ * @param {boolean} [ghost=false]       - if true, render dashed outline only
+ */
+function drawCellOnCtx(c, type, word, x, y, size, alpha=1, ghost=false) {
+  /* Mirror of drawCell() but parameterized on the canvas context so we
+     can render the next-piece preview on the side canvas. */
+  if (type === 'empty') return;
+  const colors = {
+    verb: getCss('--verb'),
+    det:  getCss('--det'),
+    noun: getCss('--noun'),
+  };
+  const shadows = {
+    verb: getCss('--verb-shadow'),
+    det:  getCss('--det-shadow'),
+    noun: getCss('--noun-shadow'),
+  };
+  c.save();
+  c.globalAlpha = alpha;
+  if (ghost) {
+    c.strokeStyle = colors[type];
+    c.lineWidth = 2;
+    c.setLineDash([5, 4]);
+    c.fillStyle = 'transparent';
+  } else {
+    c.fillStyle = colors[type];
+    c.strokeStyle = shadows[type];
+    c.lineWidth = 2;
+    c.setLineDash([]);
+  }
+  const r = 5;
+  const xx = x + 1, yy = y + 1, ss = size - 2;
+  c.beginPath();
+  c.moveTo(xx + r, yy);
+  c.arcTo(xx + ss, yy,     xx + ss, yy + ss, r);
+  c.arcTo(xx + ss, yy + ss, xx,      yy + ss, r);
+  c.arcTo(xx,      yy + ss, xx,      yy,      r);
+  c.arcTo(xx,      yy,      xx + ss, yy,      r);
+  c.closePath();
+  if (!ghost) c.fill();
+  c.stroke();
+  c.setLineDash([]);
+  if (ghost) { c.restore(); return; }
+  c.fillStyle = '#1a1d2b';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  const targetWidth = ss - 5;
+  let fontSize = Math.floor(ss * 0.70);
+  const fontStack = '-apple-system, "Helvetica Neue", "Segoe UI", system-ui, sans-serif';
+  c.font = `800 ${fontSize}px ${fontStack}`;
+  while (c.measureText(word).width > targetWidth && fontSize > 8) {
+    fontSize -= 1;
+    c.font = `800 ${fontSize}px ${fontStack}`;
+  }
+  while ((fontSize + 3) > ss && fontSize > 8) {
+    fontSize -= 1;
+    c.font = `800 ${fontSize}px ${fontStack}`;
+  }
+  const cxc = x + size/2;
+  const cyc = y + size/2;
+  /* Three-pass render for crisp, readable text on any cell color:
+   *   1. Heavy dark outline — strong dark edge
+   *   2. Bright white halo — chromatic break that sharpens glyphs
+   *   3. Solid dark fill — final word color
+   * Same trick drawCell() uses, but for the side-panel preview canvas. */
+  c.lineJoin = 'round';
+  c.miterLimit = 2;
+  /* Layer 1: bright halo (1px) — sharpens glyphs against any cell color */
+  c.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+  c.lineWidth = Math.max(0.8, fontSize * 0.06);
+  c.strokeText(word, cxc, cyc);
+  /* Layer 2: heavy dark outline — gives the white text a strong dark
+   * edge so it pops on the bright cell colors */
+  c.strokeStyle = 'rgba(8, 10, 18, 0.92)';
+  c.lineWidth = Math.max(2, fontSize * 0.18);
+  c.strokeText(word, cxc, cyc);
+  /* Layer 3: solid white fill — the final word color */
+  c.fillStyle = '#f8fafc';
+  c.fillText(word, cxc, cyc);
+  c.restore();
+}
+
+/* ---------- Load idioms (populated by Python prebuild) ----------
+ * The idiom pool is built offline by a Python script and is then
+ * either (a) embedded inline into this file as `window.__IDIOMS_POOL__`
+ * (the default — set by the prebuild), or (b) served next to the
+ * HTML as `idioms_compact.json` (lazy fetch fallback).
+ * If both fail we drop back to a 10-verb hardcoded pool so the
+ * game still runs for development.
+ * ------------------------------------------------------------ */
+let POOL = { verbs: [], dets: [], nouns: [], lookup: {} };
+
+/**
+ * Loads the idiom pool into the global `POOL` variable.
+ * Returns a Promise; the game must wait on this before spawning
+ * pieces (otherwise randomWord() will pick from an empty pool).
+ */
+async function loadPool() {
+  /* Try embedded first (works on file:// too) */
+  if (window.__IDIOMS_POOL__) {
+    POOL = window.__IDIOMS_POOL__;
+    document.querySelector('.subtitle').textContent =
+      `v-det-n · ${Object.keys(POOL.lookup).length} idioms loaded (embedded)`;
+    return;
+  }
+  try {
+    const res = await fetch('idioms_compact.json');
+    if (res.ok) {
+      POOL = await res.json();
+      document.querySelector('.subtitle').textContent =
+        `v-det-n · ${Object.keys(POOL.lookup).length} idioms loaded`;
+      return;
+    }
+    throw new Error('no fetch');
+  } catch (e) {
+    console.warn('using fallback pool:', e);
+    POOL = {
+      verbs: ['bite','kick','hit','spill','break','take','make','run','turn','jump'],
+      dets: ['the','your','a','my','an','this'],
+      nouns: ['bullet','bucket','books','milk','heart','photo','mile','tables','shark','horse'],
+      lookup: {
+        'bite|the|bullet': {display:'bite the bullet', cn:'硬着头皮', en:'Endure something difficult.'},
+        'kick|the|bucket': {display:'kick the bucket', cn:'翘辫子', en:'Die (humorous).'},
+        'hit|the|books':   {display:'hit the books',   cn:'用功读书', en:'Study hard.'},
+        'spill|the|beans': {display:'spill the beans', cn:'泄密', en:'Reveal a secret.'},
+        'break|the|heart': {display:'break the heart', cn:'令人心碎', en:'Cause deep sadness.'},
+        'take|a|photo':    {display:'take a photo',    cn:'拍张照片', en:'Take a photograph.'},
+        'run|the|mile':    {display:'run the mile',    cn:'跑完一英里', en:'Run a mile.'},
+        'turn|the|tables': {display:'turn the tables', cn:'扭转局面', en:'Reverse the situation.'},
+        'jump|the|shark':  {display:'jump the shark',  cn:'走下坡路', en:'Begin to decline in quality.'},
+      }
+    };
+    document.querySelector('.subtitle').textContent =
+      'v-det-n · demo pool (offline)';
+  }
+}
+
+/* ---------- Game state ----------
+ * All mutable state lives at module scope for easy inspection in
+ * DevTools. The only true singleton is the `grid` 2D array.
+ * -------------------------------- */
+let grid;              // 2D array: {type:'verb'|'det'|'noun'|'empty', word:'', locked:false}
+let current;           // {type, word, x, y} -- the actively-falling piece
+let next;              // upcoming piece (rendered in side panel)
+let cleared = 0;       // number of idioms successfully cleared
+let score = 0;         // points (100 * level per idiom; +1 per soft-drop cell)
+let lines = 0;         // (currently unused; reserved for row-clear tracking)
+let level = 1;         // increases every 8 clears; speeds up the drop
+let dropTimer = 0;     // ms accumulated since last automatic drop
+let lastTime = 0;      // last requestAnimationFrame timestamp
+let gameOver = false;
+let paused = false;
+let dropInterval = 800; // ms per cell; decreases as `level` rises
+
+/** Tiny alias for document.getElementById. */
+const $ = id => document.getElementById(id);
+
+/** Build a fresh empty 20x10 grid. */
+function makeGrid() {
+  return Array.from({length: ROWS}, () => Array.from({length: COLS}, () => ({type: 'empty', word: ''})));
+}
+
+/**
+ * Returns a random word tagged with its part of speech.
+ *
+ * "Smart drop" behavior: with probability `window.__DIFFICULTY__`
+ * (default 0.20) we consume 3 words from a single curated idiom in
+ * V -> det -> N order. Otherwise we fall back to type-weighted
+ * uniform random (50% verb / 15% det / 35% noun — verbs and nouns
+ * outnumber determiners by ~3:1 in the pool, so this roughly
+ * mirrors the pool's natural distribution).
+ *
+ * @returns {{type:'verb'|'det'|'noun', word:string}}
+ */
+function randomWord() {
+  /* Smart drop: with probability P_IDIOM, return next word from a curated idiom
+     (so 3 consecutive drops form a valid idiom if lined up correctly).
+     Otherwise fall back to uniform random. */
+  if (Math.random() < (window.__DIFFICULTY__ || 0.20) && _idiomQueue.length === 0) {
+    /* start a new 3-word idiom queue */
+    const key = POOL._ordered_keys[Math.floor(Math.random() * POOL._ordered_keys.length)];
+    const [v, d, n] = key.split('|');
+    _idiomQueue.push({type: 'verb', word: v});
+    _idiomQueue.push({type: 'det',  word: d});
+    _idiomQueue.push({type: 'noun', word: n});
+  }
+  if (_idiomQueue.length > 0) {
+    return _idiomQueue.shift();
+  }
+  /* fall back: uniform random */
+  const r = Math.random();
+  let type, pool;
+  if (r < 0.5) { type = 'verb'; pool = POOL.verbs; }
+  else if (r < 0.65) { type = 'det'; pool = POOL.dets; }
+  else { type = 'noun'; pool = POOL.nouns; }
+  return { type, word: pool[Math.floor(Math.random() * pool.length)] };
+}
+
+/** FIFO queue of upcoming "smart-drop" words. */
+const _idiomQueue = [];
+
+/** Build a new piece at the top-center of the grid (x=3, y=0). */
+function newPiece() {
+  return { ...randomWord(), x: 3, y: 0 };
+}
+
+/**
+ * Promote `next` -> `current`, generate a new `next`, repaint
+ * the side preview, and check whether the new piece is already
+ * colliding (in which case it's game over).
+ */
+function spawnNext() {
+  current = next || newPiece();
+  next = newPiece();
+  drawNext();
+  if (collides(current, 0, 0)) {
+    gameOver = true;
+  }
+}
+
+/**
+ * Would the piece overlap anything / leave the board if we moved
+ * it by (dx, dy) cells? Used for movement, soft/hard drop, and
+ * the ghost preview calculation.
+ *
+ * @param {{x:number, y:number, type:string}} piece
+ * @param {number} dx
+ * @param {number} dy
+ * @returns {boolean} true if the move is blocked
+ */
+function collides(piece, dx, dy) {
+  const nx = piece.x + dx;
+  const ny = piece.y + dy;
+  if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+  if (ny < 0) return false; // above grid (still spawning)
+  const cell = grid[ny][nx];
+  return cell.type !== 'empty';
+}
+
+/**
+ * Write the active piece into the grid and try to clear any
+ * idiom it just formed. Called from the game loop on collision
+ * or on hard-drop.
+ *
+ * @param {{x:number, y:number, type:string, word:string}} piece
+ */
+function lock(piece) {
+  if (piece.y < 0) {
+    gameOver = true;
+    return;
+  }
+  grid[piece.y][piece.x] = { type: piece.type, word: piece.word, locked: true };
+  /* New rule: as long as the 3 words of a valid idiom are neighbors
+     (no foreign word in between), they can clear — even if other words
+     are above/below or further out on the same row. */
+  checkIdiomClear(piece.x, piece.y);
+  dropTimer = 0;
+  spawnNext();
+}
+
+/* ---------- Idiom detection ----------
+ * The rules live in checkIdiomClear() and its helpers. They walk
+ * the grid in priority order, returning as soon as the first
+ * match is found (we clear one idiom at a time to keep the
+ * animation readable; cascades happen via the recursive call
+ * inside clearIdiomAt()).
+ * ----------------------------------- */
+
+/**
+ * Try to find and clear an idiom involving the just-locked cell
+ * at (px, py). Clears at most one idiom per call; cascade
+ * detection happens later via scanAllForIdioms() after gravity.
+ *
+ * Detection is in 4 priority phases:
+ *   (A)   Direct neighbors: 3 adjacent cells in a straight line
+ *         in one of 4 directions, types matching v-d-n or n-d-v.
+ *   (A')  Same line with 0-2 empty gaps between cells.
+ *   (B)   Row scan on the locked cell's own row.
+ *   (B')  Whole-board scan (catches anything that lined up from
+ *         a previous cascade).
+ *
+ * @param {number} px  - column of the cell that just locked
+ * @param {number} py  - row    of the cell that just locked
+ */
+function checkIdiomClear(px, py) {
+  /* Find ALL valid v-d-n idioms that touch the just-locked cell (px,py).
+     Two formation patterns are allowed:
+       (A) DIRECT NEIGHBOR: the 3 cells are in a straight line, every
+           cell in between is empty (the just-locked cell may sit in the
+           middle or at either end).  1-2 cell gaps allowed.
+       (B) ROW SCAN: any 3 consecutive cells in this row forming v-d-n.
+     For each valid cluster, the 3 cells are cleared and the idiom is
+     surfaced in a toast. Up to 2 clusters cleared per lock. */
+
+  const found = new Set();
+  const tryEmit = (cells, key) => {
+    const sig = cells.map(([x,y]) => `${x},${y}`).sort().join('|');
+    if (found.has(sig)) return false;
+    found.add(sig);
+    const cx = cells.reduce((a,c)=>a+c[0],0) / cells.length;
+    const cy = cells.reduce((a,c)=>a+c[1],0) / cells.length;
+    clearIdiomAt(cx, cy, cells, key);
+    return true;
+  };
+
+  const cellAt = (cx, cy) => {
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) return null;
+    return grid[cy][cx];
+  };
+  const isEmpty = (cx, cy) => {
+    const c = cellAt(cx, cy);
+    return c && c.type === 'empty';
+  };
+
+  /* (A) DIRECT NEIGHBOR: scan 4 directions for v-d-n with 0, 1, or 2 empty gaps.
+     The 3 cells must be in a straight line (horizontal or vertical).
+     The just-locked cell (px,py) is one of the 3 (not necessarily the verb). */
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  for (const [dx, dy] of dirs) {
+    for (const layout of [
+      /* v d n  */  ['verb', 'det', 'noun'],
+      /* n d v  */  ['noun', 'det', 'verb'],  // reverse direction
+    ]) {
+      /* offsets from (px,py) for each role */
+      const offs = [
+        [0, 0],
+        [dx, dy],
+        [2*dx, 2*dy],
+      ];
+      const cells = offs.map(([ox, oy]) => [px + ox, py + oy]);
+      const inBounds = cells.every(([x,y]) => x >= 0 && x < COLS && y >= 0 && y < ROWS);
+      if (!inBounds) continue;
+      const types = layout;
+      const cellVals = cells.map(([x,y]) => grid[y][x]);
+      const typeMatch = cellVals.every((c, i) => c.type === types[i] && c.word);
+      if (!typeMatch) continue;
+      /* No "foreign" word in between — since cells are adjacent, the between
+         cells ARE the cells themselves, so no check needed for offset 0/1/2. */
+      const v = layout[0] === 'verb' ? cellVals[0] : cellVals[2];
+      const d = cellVals[1];
+      const n = layout[0] === 'verb' ? cellVals[2] : cellVals[0];
+      const key = `${v.word}|${d.word}|${n.word}`;
+      if (POOL.lookup[key]) {
+        if (tryEmit(cells, key)) return;
+      }
+    }
+  }
+
+  /* (A-extension) STRAIGHT LINE WITH 1-2 EMPTY GAPS, starting from (px,py).
+     Search 4 directions for the closest v (or n), then a d in between, then n (or v). */
+  for (const [dx, dy] of dirs) {
+    for (const targetEnd of ['verb', 'noun']) {
+      /* The locked cell is the MIDDLE or one of the ends. Try "locked" as middle: */
+      if (targetEnd === 'noun') {
+        /* find first v in direction (dx,dy), with det in between */
+        let blocked = false;
+        for (let step = 1; step <= 4; step++) {
+          const farCell = cellAt(px + step*dx, py + step*dy);
+          if (!farCell) { blocked = true; break; }
+          if (farCell.type !== 'verb') continue;
+          if (step < 2) continue;
+          const detCell = cellAt(px + dx, py + dy);
+          if (!detCell || detCell.type !== 'det') continue;
+          for (let k = 2; k < step; k++) {
+            if (!isEmpty(px + k*dx, py + k*dy)) { blocked = true; break; }
+          }
+          if (blocked) continue;
+          const key = `${farCell.word}|${detCell.word}|${cellAt(px,py).word}`;
+          if (POOL.lookup[key] && cellAt(px,py).type === 'noun') {
+            const cells = [[px+step*dx,py+step*dy],[px+dx,py+dy],[px,py]];
+            if (tryEmit(cells, key)) return;
+          }
+        }
+      } else {
+        /* find first n in direction (dx,dy), with det in between, locked cell = verb */
+        let blocked = false;
+        for (let step = 1; step <= 4; step++) {
+          const farCell = cellAt(px + step*dx, py + step*dy);
+          if (!farCell) { blocked = true; break; }
+          if (farCell.type !== 'noun') continue;
+          if (step < 2) continue;
+          const detCell = cellAt(px + dx, py + dy);
+          if (!detCell || detCell.type !== 'det') continue;
+          for (let k = 2; k < step; k++) {
+            if (!isEmpty(px + k*dx, py + k*dy)) { blocked = true; break; }
+          }
+          if (blocked) continue;
+          const key = `${cellAt(px,py).word}|${detCell.word}|${farCell.word}`;
+          if (POOL.lookup[key] && cellAt(px,py).type === 'verb') {
+            const cells = [[px,py],[px+dx,py+dy],[px+step*dx,py+step*dy]];
+            if (tryEmit(cells, key)) return;
+          }
+        }
+      }
+    }
+  }
+
+  /* (B) ROW SCAN: any 3 consecutive cells in this row forming v-d-n. */
+  for (let start = 0; start + 2 < COLS; start++) {
+    const a = grid[py][start], b = grid[py][start+1], c = grid[py][start+2];
+    if (!a.word || !b.word || !c.word) continue;
+    if (a.type !== 'verb' || b.type !== 'det' || c.type !== 'noun') continue;
+    const key = `${a.word}|${b.word}|${c.word}`;
+    if (POOL.lookup[key]) {
+      const positions = [[start,py],[start+1,py],[start+2,py]];
+      if (tryEmit(positions, key)) return;
+    }
+  }
+
+  /* (B-extension) WHOLE-BOARD SCAN if no immediate clear.
+     Find ANY v-d-n triple on the same row, anywhere, regardless of distance
+     to (px,py). Skip if any of the 3 cells is currently being animated. */
+  for (let row = 0; row < ROWS; row++) {
+    for (let start = 0; start + 2 < COLS; start++) {
+      const a = grid[row][start], b = grid[row][start+1], c = grid[row][start+2];
+      if (!a.word || !b.word || !c.word) continue;
+      if (a.type !== 'verb' || b.type !== 'det' || c.type !== 'noun') continue;
+      const key = `${a.word}|${b.word}|${c.word}`;
+      if (POOL.lookup[key]) {
+        const positions = [[start,row],[start+1,row],[start+2,row]];
+        if (tryEmit(positions, key)) return;
+      }
+    }
+  }
+}
+
+/**
+ * Animate the idiom out (rotate + fade) and then commit the clear.
+ * The animation lives in its own requestAnimationFrame loop so the
+ * main game loop can keep ticking.
+ *
+ * @param {number} cx            - centroid x (for particle spawn)
+ * @param {number} cy            - centroid y (for particle spawn)
+ * @param {Array<[number,number]>} positions - the 3 [x,y] cells to clear
+ * @param {string} key           - lookup key "verb|det|noun"
+ */
+function clearIdiomAt(cx, cy, positions, key) {
+  /* positions: array of 3 [x,y] coordinates of the cells forming the idiom. */
+  const entry = POOL.lookup[key];
+  showToast(entry);
+
+  let ticks = 0;
+  const animate = () => {
+    ticks++;
+    draw();
+    ctx.save();
+    ctx.globalAlpha = 1 - ticks / 14;
+    for (const [px, py] of positions) {
+      const c = grid[py][px];
+      if (!c.word) continue;
+      const x = px * CELL;
+      const y = py * CELL;
+      ctx.translate(x + CELL/2, y + CELL/2);
+      ctx.rotate(ticks * 0.18);
+      ctx.translate(-(x + CELL/2), -(y + CELL/2));
+      drawCell(c.type, c.word, x, y, CELL, 1);
+    }
+    ctx.restore();
+    if (ticks < 14) {
+      requestAnimationFrame(animate);
+    } else {
+      /* Actually clear */
+      for (const [px, py] of positions) {
+        grid[py][px] = {type: 'empty', word: ''};
+      }
+      /* Particles at centroid */
+      const partX = Math.round(cx);
+      const partY = Math.round(cy);
+      spawnParticles(partX, partY, 30);
+      cleared += 1;
+      score += 100 * level;
+      $('stat-cleared').textContent = cleared;
+      $('stat-score').textContent = score;
+      applyGravity();
+      /* After clearing & gravity, the new arrangement may have produced
+         more valid idioms (cascade). Re-scan the row. */
+      if (cleared % 8 === 0) {
+        level += 1;
+        dropInterval = Math.max(150, 800 - (level - 1) * 70);
+        $('stat-level').textContent = level;
+      }
+      draw();
+      /* Chain: scan the locked cell's column too */
+      const lastLocked = positions[positions.length - 1];
+      if (lastLocked) {
+        checkIdiomClear(lastLocked[0], lastLocked[1]);
+      }
+    }
+  };
+  animate();
+}
+
+/**
+ * Make every column "fall" by collapsing any empty cells below
+ * a non-empty one. Then trigger a whole-board idiom scan to
+ * catch cascades (gravity may have lined up new v-d-n triples).
+ */
+function applyGravity() {
+  for (let c = 0; c < COLS; c++) {
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (grid[r][c].type !== 'empty') {
+        let nr = r;
+        while (nr + 1 < ROWS && grid[nr + 1][c].type === 'empty') {
+          nr += 1;
+        }
+        if (nr !== r) {
+          grid[nr][c] = grid[r][c];
+          grid[r][c] = {type: 'empty', word: ''};
+        }
+      }
+    }
+  }
+  /* After gravity, scan whole board for any new v-d-n idioms that have
+     become aligned because cells dropped. */
+  scanAllForIdioms();
+}
+
+/**
+ * Brute-force scan: for every row, check every 3-consecutive-cell
+ * window. If it forms a valid v-d-n, clear the leftmost match and
+ * return (cascades are caught by clearIdiomAt's gravity+rescan).
+ */
+function scanAllForIdioms() {
+  /* Scan every row for any 3 consecutive cells forming v-d-n. */
+  for (let r = 0; r < ROWS; r++) {
+    for (let start = 0; start + 2 < COLS; start++) {
+      const a = grid[r][start], b = grid[r][start+1], c = grid[r][start+2];
+      if (!a.word || !b.word || !c.word) continue;
+      if (a.type !== 'verb' || b.type !== 'det' || c.type !== 'noun') continue;
+      const key = `${a.word}|${b.word}|${c.word}`;
+      if (POOL.lookup[key]) {
+        const positions = [[start,r],[start+1,r],[start+2,r]];
+        clearIdiomAt(start+1, r, positions, key);
+        return;
+      }
+    }
+  }
+}
+
+/* ---------- Rendering ----------
+ * The main board is redrawn from scratch on every frame (cheap at
+ * 22x7 with 50px cells). Each cell is drawn via drawCell(); a
+ * separate ghost pass renders the dashed outline of where the
+ * active piece will land.
+ * ----------------------------- */
+
+/**
+ * Draw a single cell on the main board.
+ *
+ * Visual style: rounded square, color from CSS var based on type,
+ * adaptive font size that always fits the cell width. The adaptive
+ * loop starts at 55% of cell side and steps down by 1px until the
+ * text fits, with a hard minimum of 6px.
+ *
+ * @param {string} type    - 'verb' | 'det' | 'noun' | 'empty' (no-op)
+ * @param {string} word    - word to render in the cell
+ * @param {number} x,y     - top-left pixel coord on the main canvas
+ * @param {number} size    - cell side length in px
+ * @param {number} [alpha=1]  - global alpha
+ * @param {boolean} [ghost=false] - if true, draw dashed outline only
+ */
+function drawCell(type, word, x, y, size, alpha=1, ghost=false) {
+  if (type === 'empty') return;
+  const colors = {
+    verb: getCss('--verb'),
+    det:  getCss('--det'),
+    noun: getCss('--noun'),
+  };
+  const shadows = {
+    verb: getCss('--verb-shadow'),
+    det:  getCss('--det-shadow'),
+    noun: getCss('--noun-shadow'),
+  };
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  if (ghost) {
+    /* Ghost: just an outline, no fill */
+    ctx.strokeStyle = colors[type];
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    ctx.fillStyle = 'transparent';
+  } else {
+    /* Filled cell with a slightly darker stroke so cells don't blur together */
+    ctx.fillStyle = colors[type];
+    ctx.strokeStyle = shadows[type];
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+  }
+  /* tetromino block shape (slight rounded) */
+  const r = 5;
+  const xx = x + 1, yy = y + 1, ss = size - 2;
+  ctx.beginPath();
+  ctx.moveTo(xx + r, yy);
+  ctx.arcTo(xx + ss, yy,     xx + ss, yy + ss, r);
+  ctx.arcTo(xx + ss, yy + ss, xx,      yy + ss, r);
+  ctx.arcTo(xx,      yy + ss, xx,      yy,      r);
+  ctx.arcTo(xx,      yy,      xx + ss, yy,      r);
+  ctx.closePath();
+  if (!ghost) ctx.fill();
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (ghost) { ctx.restore(); return; }
+  /* Word — adaptive font size that always fits the cell width.
+   * Start at 70% of cell size and use a layered text rendering
+   * technique for crisp letterforms:
+   *   1. Heavy dark stroke (3 layers) — darkens edges, adds weight
+   *   2. Bright white inner fill (offset by 1px) — sharpens glyphs
+   *      and creates a halo around dark letters
+   *   3. Original dark fill on top — the actual word color
+   * This is the same trick game UIs use for readable text on any bg. */
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const targetWidth = ss - 5;
+  let fontSize = Math.floor(ss * 0.70);  // start large
+  const fontStack = '-apple-system, "Helvetica Neue", "Segoe UI", system-ui, sans-serif';
+  ctx.font = `800 ${fontSize}px ${fontStack}`;
+  while (ctx.measureText(word).width > targetWidth && fontSize > 8) {
+    fontSize -= 1;
+    ctx.font = `800 ${fontSize}px ${fontStack}`;
+  }
+  while ((fontSize + 3) > ss && fontSize > 8) {
+    fontSize -= 1;
+    ctx.font = `800 ${fontSize}px ${fontStack}`;
+  }
+  const cx = x + size/2;
+  const cy = y + size/2;
+  /* Layer 1: bright halo (1px) — sharpens white glyphs against any cell color */
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.lineWidth = Math.max(0.8, fontSize * 0.06);
+  ctx.strokeText(word, cx, cy);
+  /* Layer 2: heavy dark outline — strong dark edge so the white text
+   * pops on the bright cell colors */
+  ctx.strokeStyle = 'rgba(8, 10, 18, 0.92)';
+  ctx.lineWidth = Math.max(2, fontSize * 0.18);
+  ctx.strokeText(word, cx, cy);
+  /* Layer 3: solid white fill — the final word color */
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText(word, cx, cy);
+  ctx.restore();
+}
+
+/**
+ * Read a CSS custom property from :root. We re-read on every draw
+ * (rather than caching) so theme tweaks in DevTools apply live.
+ *
+ * @param {string} v - CSS variable name, including leading "--"
+ * @returns {string} trimmed value
+ */
+function getCss(v) {
+  return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+}
+
+/** Faint vertical + horizontal gridlines between cells. */
+function drawGrid() {
+  ctx.strokeStyle = getCss('--grid-line');
+  ctx.lineWidth = 1;
+  for (let i = 1; i < COLS; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * CELL, 0);
+    ctx.lineTo(i * CELL, ROWS * CELL);
+    ctx.stroke();
+  }
+  for (let j = 1; j < ROWS; j++) {
+    ctx.beginPath();
+    ctx.moveTo(0, j * CELL);
+    ctx.lineTo(COLS * CELL, j * CELL);
+    ctx.stroke();
+  }
+}
+
+/**
+ * Full-board repaint. Called every frame from loop().
+ * Order matters: background -> gridlines -> locked cells ->
+ * ghost preview -> active piece. The ghost is computed by
+ * repeatedly trying to step the piece down until it collides.
+ */
+function draw() {
+  ctx.fillStyle = getCss('--grid-bg');
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      if (cell.type !== 'empty') {
+        drawCell(cell.type, cell.word, c * CELL, r * CELL, CELL);
+      }
+    }
+  }
+  /* ghost — dashed outline at the landing position */
+  if (current && !gameOver) {
+    let gy = current.y;
+    while (!collides({...current, y: gy + 1}, 0, 0)) gy += 1;
+    drawCell(current.type, current.word, current.x * CELL, gy * CELL, CELL, 0.9, true);
+    /* active solid block at current.y */
+    drawCell(current.type, current.word, current.x * CELL, current.y * CELL, CELL);
+  }
+}
+
+/* ---------- Toast / particles ----------
+ * showToast() briefly displays the cleared idiom above the board
+ * (idiom + Chinese gloss + English example). spawnParticles()
+ * creates a short-lived Web-Animations-API burst at the centroid
+ * of the cleared cells, layered on top of the canvas via DOM.
+ * ------------------------------------- */
+
+/**
+ * Show the cleared idiom's full form + Chinese meaning in the
+ * center toast. We restart the CSS animation by toggling the
+ * `show` class with a forced reflow in between.
+ *
+ * @param {{display:string, cn:string, en?:string}} entry - POOL.lookup value
+ */
+function showToast(entry) {
+  const overlay = $('toast');
+  $('toast-idiom').textContent = entry.display;
+  $('toast-cn').textContent = entry.cn;
+  $('toast-en').textContent = entry.en || '';
+  overlay.classList.remove('show');
+  void overlay.offsetWidth; // restart animation
+  overlay.classList.add('show');
+}
+
+/**
+ * Burst of small DOM particles at (col, row). Uses the Web
+ * Animations API (`element.animate`) for a zero-dependency
+ * physics-light effect. Each particle is auto-removed on finish.
+ *
+ * @param {number} col  - grid column (multiplied by CELL)
+ * @param {number} row  - grid row    (multiplied by CELL)
+ * @param {number} count - number of particles to emit
+ */
+function spawnParticles(col, row, count) {
+  const overlay = document.querySelector('.board-wrap');
+  const rect = canvas.getBoundingClientRect();
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const color = ['var(--verb)','var(--det)','var(--noun)'][i % 3];
+    p.style.background = color;
+    p.style.left = (rect.left + (col + 1) * CELL) + 'px';
+    p.style.top = (rect.top + row * CELL) + 'px';
+    overlay.appendChild(p);
+    const dx = (Math.random() - 0.5) * 220;
+    const dy = (Math.random() - 1) * 240;
+    const dur = 600 + Math.random() * 600;
+    p.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0)`, opacity: 0 }
+    ], { duration: dur, easing: 'cubic-bezier(.2,.6,.4,1)' }).onfinish = () => p.remove();
+  }
+}
+
+/* ---------- Game loop ----------
+ * Standard fixed-timestep-feel loop using requestAnimationFrame.
+ * `dt` is the wall-clock delta since the previous frame in ms;
+ * we accumulate it in `dropTimer` and trigger a single-cell drop
+ * whenever the threshold is reached. The visual is redrawn every
+ * frame regardless (cheap).
+ * ----------------------------- */
+
+/**
+ * Per-frame logic step. Advances the falling piece by one row
+ * when the accumulated drop interval has elapsed.
+ *
+ * @param {number} dt - ms since previous frame
+ */
+function step(dt) {
+  if (gameOver || paused) return;
+  dropTimer += dt;
+  if (dropTimer >= dropInterval) {
+    dropTimer = 0;
+    if (!collides(current, 0, 1)) {
+      current.y += 1;
+    } else {
+      lock(current);
+    }
+  }
+}
+
+/**
+ * Main RAF callback. Computes delta time, runs the step, repaints,
+ * updates the status line on game over, and re-arms itself.
+ * @param {DOMHighResTimeStamp} t - timestamp passed by the browser
+ */
+function loop(t) {
+  const dt = lastTime ? (t - lastTime) : 16;
+  lastTime = t;
+  step(dt);
+  draw();
+  if (gameOver) {
+    $('status').innerHTML = '<span class="gameover">GAME OVER</span>';
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ---------- Input ----------
+ * Keyboard handler. We swallow the default for Space and ArrowUp
+ * so the page doesn't scroll. `P` toggles pause; arrow keys move
+ * the active piece; Space / ArrowUp is a hard drop. Soft drop
+ * with ArrowDown earns +1 score per cell as a small incentive.
+ * --------------------------------- */
+
+/**
+ * Global keydown handler. See block comment above for the full
+ * keymap. Ignores all input while the game is over; ignores
+ * movement input while paused (but still allows un-pausing).
+ */
+document.addEventListener('keydown', (e) => {
+  if (gameOver) return;
+  if (e.key === 'p' || e.key === 'P') { paused = !paused; $('status').textContent = paused ? 'paused' : 'playing'; return; }
+  if (paused) return;
+  if (e.key === 'ArrowLeft') {
+    if (!collides(current, -1, 0)) current.x -= 1;
+  } else if (e.key === 'ArrowRight') {
+    if (!collides(current, 1, 0)) current.x += 1;
+  } else if (e.key === 'ArrowDown') {
+    if (!collides(current, 0, 1)) {
+      current.y += 1;
+      score += 1;
+      $('stat-score').textContent = score;
+    }
+  } else if (e.key === 'ArrowUp' || e.key === ' ') {
+    e.preventDefault();
+    while (!collides(current, 0, 1)) current.y += 1;
+    lock(current);
+  }
+});
+
+/**
+ * Reset the game to a fresh state. Safe to call at any time.
+ * Called by the Restart button and also from the boot sequence
+ * after the idiom pool has loaded.
+ */
+$('restart').addEventListener('click', restart);
+
+function restart() {
+  grid = makeGrid();
+  cleared = 0; score = 0; lines = 0; level = 1;
+  dropTimer = 0;
+  gameOver = false;
+  paused = false;
+  dropInterval = 800;
+  $('stat-cleared').textContent = '0';
+  $('stat-score').textContent = '0';
+  /* stat-lines is intentionally absent from the redesigned mini
+   * side panel — guard the lookup so restart() doesn't crash. */
+  if ($('stat-lines')) $('stat-lines').textContent = '0';
+  $('stat-level').textContent = '1';
+  $('status').textContent = 'playing';
+  /* stat-lines is intentionally absent from the redesigned mini
+   * side panel — guard the lookup so restart() doesn't crash. */
+  if ($('stat-lines')) $('stat-lines').textContent = '0';
+  next = newPiece();
+  spawnNext();
+  drawNext();
+}
+
+/* ---------- Boot ----------
+ * Top-level bootstrap. Load the idiom pool, reset state, paint
+ * the first frame, then kick off the RAF loop. Errors are
+ * logged but not surfaced to the user (the fallback pool keeps
+ * the game playable even on fetch failure).
+ * --------------------------------- */
+loadPool().then(() => {
+  restart();
+  // Force a first draw + start the loop
+  draw();
+  lastTime = performance.now();
+  /* Flip the boot flag AFTER restart() so drawNext() can safely
+   * read `next` (a `let` binding further down). Until this point
+   * drawNext() no-ops (board is being painted by draw() anyway). */
+  bootComplete = true;
+  drawNext();        // paint the side panel now that `next` exists
+  requestAnimationFrame(loop);
+}).catch(err => {
+  console.error('boot failed:', err);
+});
+</script>
+</body>
+</html>

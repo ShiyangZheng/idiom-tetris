@@ -654,37 +654,49 @@
   }
 
   /* ============================================================
-   *  TOUCH-MODE PAGE LOCK + HEADER RESERVATION OVERRIDE
-   *  Without the lock, the page is taller than the phone's viewport
-   *  (title + stats + canvas + FAB) and scrolls. A vertical scroll
-   *  on the board would still fire `pointermove` (since the canvas
-   *  has `touch-action: none` and captures the pointer), and our
-   *  swipe-up handler would interpret that scroll as a hard drop.
-   *  Locking the body in touch mode means:
-   *    1. There is no page scroll to misinterpret — the body is
-   *       exactly the viewport tall and overflow:hidden.
-   *    2. `overscroll-behavior: none` also kills iOS Safari's
-   *       pull-to-refresh / rubber-band bounce on the page root.
-   *    3. `position: fixed` keeps the body pinned even when the
-   *       iOS URL bar shows/hides (the body would otherwise
-   *       re-flow to a different scrollY and cause a "jump").
-   *  The `--header-reserved-px` override bumps the value fitBoard()
-   *  reads to account for the side HUD chip row (~134px) and the
-   *  FAB row (~76px) that the desktop layout doesn't have.
-   *  Fit-board sizing is still driven by visualViewport.height
-   *  so the canvas always tracks the actually-visible area. */
+   *  TOUCH-MODE: HEADER RESERVATION + iOS BOUNCE KILL
+   *  v6 note: in v5 we locked the body with position:fixed +
+   *  height:100dvh + overflow:hidden to prevent page-scroll
+   *  from being misread as a hard-drop swipe. That had two
+   *  unintended consequences:
+   *    1. The body became a 100dvh-tall fixed box, so the FAB
+   *       row (now an inline sibling of the canvas) lived below
+   *       the visible viewport and was unreachable. The user
+   *       couldn't scroll to see it.
+   *    2. The fixed-body layout interacted badly with
+   *       setPointerCapture on the canvas — horizontal swipes
+   *       stopped moving the block, presumably because the
+   *       captured pointer coords were being reported against
+   *       a non-default root scroller.
+   *  v6 fix: leave the body naturally scrollable. The scroll
+   *  surface is now the HUD chip row + page top/bottom — the
+   *  canvas still has `touch-action: none` so the page can NOT
+   *  be scrolled by swiping on the board. The only place a
+   *  vertical swipe can scroll the page is the HUD/header
+   *  region above the board. We rely on three things to keep
+   *  vertical canvas swipes from being misread as hard drops:
+   *    a) `touch-action: none` on #board itself (NOT inherited,
+   *       so the browser doesn't even try to interpret the
+   *       gesture as a scroll — pointer events fire normally).
+   *    b) `overscroll-behavior: none` on the body kills the iOS
+   *       pull-to-refresh + rubber-band bounce that would
+   *       otherwise fire when the user overscrolls the body.
+   *    c) The pure-vertical guard in onMove:
+   *       `dy < -SWIPE_VERTICAL && _touch.movedX < SWIPE_DEADZONE`
+   *       means only a clean upward stroke of >64px counts as a
+   *       hard drop. A real "I'm scrolling the page" gesture
+   *       drifts horizontally and gets eaten by the horizontal
+   *       move handler instead.
+   *  --header-reserved-px: 280px keeps fitBoard() sized so the
+   *  board + FAB both fit in the visible area. The body itself
+   *  is the full document height, so if the user scrolls the
+   *  page to see content above/below the canvas, the canvas
+   *  size is unchanged (it tracks visualViewport.height, not
+   *  the body's scroll position). */
   body.touch-mode {
-    height: 100dvh;
-    overflow: hidden;
     overscroll-behavior: none;
-    position: fixed;
-    inset: 0;
-    width: 100%;
     --header-reserved-px: 280px;
   }
-  /* `position: fixed` body needs explicit `width: 100%` and
-   * `left/right: 0` (handled by `inset: 0`) so the flex children
-   * measure against the actual viewport, not the document width. */
 </style>
 <!-- ============================================================
      EMBEDDED IDIOM POOL
@@ -1055,15 +1067,16 @@ function fitBoard() {
      cellByW (13 cols) = ~84 → height wins → 37px cells → board
      481x814. On a 1080p window: 1000/22 ≈ 45, cap to 44 → board
      572x968.
-     On touch devices the body is `position: fixed; overflow:
-     hidden; height: 100dvh` (see touch-mode rules in <style>),
-     so there is no scroll to make up for a too-large board. We
-     lower CELL_MIN to 22px in touch mode so the canvas + chrome
-     fit in the viewport on iPhone SE-sized screens (≈640px tall
-     after URL bar) — without this, fitBoard() would clamp to 28
-     and the board + FAB row would still be ~30-50px taller than
-     the visible area, requiring a tiny scroll the user can't
-     perform (because the body is locked). */
+     On touch devices the body is freely scrollable (v6, no
+     body lock), but the board still sizes against the visible
+     viewport so a tall piece can be played without first
+     having to scroll to see the bottom row. We lower CELL_MIN
+     to 22px in touch mode so the canvas + chrome fit in the
+     viewport on iPhone SE-sized screens (≈640px tall after
+     URL bar) — without this, fitBoard() would clamp to 28
+     and the board + FAB row would be ~30-50px taller than
+     the visible area, forcing the user to scroll before they
+     can see the action. */
   const cellMin = document.body.classList.contains('touch-mode') ? 22 : 28;
   CELL = Math.max(cellMin, Math.min(44, cellByH, cellByW));
   canvas.width  = COLS * CELL;

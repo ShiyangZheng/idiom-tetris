@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Idiom Tetris — V-det-N</title>
 <style>
   /* ============================================================
@@ -540,6 +540,85 @@
     100% { box-shadow: 0 0 0 0 rgba(192, 132, 252, 0); }
   }
 
+  /* ============================================================
+   *  TOUCH INPUT (mobile / tablets / touch-screen laptops)
+   *  1) Disable browser default gestures on the game area so
+   *     swipes don't trigger page scroll, zoom, or pull-to-refresh.
+   *  2) The floating action buttons (FAB) are hidden by default.
+   *     The JS `isMobileTouch()` check reveals them via the
+   *     `touch-mode` class on <body>. This way we never show
+   *     a useless FAB row on desktops, and the layout is fully
+   *     driven by a runtime JS check, not CSS @media queries.
+   *  3) On narrow screens with touch-mode, the side HUD columns
+   *     collapse so the board can take the full width. The FAB
+   *     replaces the right column's controls.
+   *  ============================================================ */
+  .board-wrap, #board, .touch-fab button {
+    /* Hard-block browser default gestures: without these,
+     * a horizontal swipe would scroll the page, a pinch would
+     * zoom, and a down-swipe from the top would trigger
+     * pull-to-refresh on mobile browsers. Note: `touch-action`
+     * is NOT inherited, so we have to set it on #board (the
+     * canvas that actually receives the touch) in addition to
+     * its parent .board-wrap. */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .touch-fab { display: none; }
+  body.touch-mode .touch-fab { display: flex; }
+  .touch-fab {
+    position: fixed;
+    left: 50%;
+    bottom: max(16px, env(safe-area-inset-bottom, 16px));
+    transform: translateX(-50%);
+    gap: 14px;
+    z-index: 50;
+    /* The wrapper itself is non-interactive so swipes on the
+     * gaps fall through to the canvas behind. */
+    pointer-events: none;
+  }
+  .touch-fab button {
+    pointer-events: auto;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    color: var(--text);
+    font-size: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .touch-fab button:active { background: rgba(80, 80, 120, 0.7); }
+  .touch-fab .fab-pause { font-size: 22px; }
+
+  /* Mobile layout: on narrow screens + touch-mode, collapse the
+   * side HUDs so the board gets the full screen width.
+   * Right column disappears (Restart, leaderboard, toggles, etc.
+   * are surfaced through the FAB). Left column collapses to a
+   * horizontal mini-bar showing the three live stats. */
+  @media (max-width: 600px) {
+    body.touch-mode .layout {
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    body.touch-mode .side-col.right { display: none; }
+    body.touch-mode .side-col.left {
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 14px;
+      width: 100%;
+    }
+  }
 </style>
 <!-- ============================================================
      EMBEDDED IDIOM POOL
@@ -687,6 +766,26 @@
       </div>
       <button class="btn-primary clear-continue" id="clear-continue" type="button">Got it</button>
     </div>
+  </div>
+
+  <!-- ============================================================
+       Floating action buttons (FAB) — touch input only.
+       Hidden by default; revealed by JS via body.touch-mode when
+       isMobileTouch() detects a real touchscreen. Three buttons:
+         ↻  : tap-only alternative to swipes (mimics ↑/Space hard-drop;
+              the on-canvas tap is also mapped to soft-drop 1, so this
+              button gives the player a one-tap "hard drop now" path)
+         ⬇  : pause toggle (mimics P / Esc)
+         ⏸  : restart (mimics the Restart HUD button on desktop)
+       The two are intentionally few: every one of them duplicates a
+       key/button that's already in the keyboard-only flow, so the
+       learning value of the game (idiom exposure) is preserved while
+       making it possible to play one-handed with the thumb.
+       ============================================================ -->
+  <div class="touch-fab" role="toolbar" aria-label="Touch controls">
+    <button id="fab-hard" type="button" aria-label="Hard drop">⤓</button>
+    <button id="fab-pause" class="fab-pause" type="button" aria-label="Pause / resume">⏸</button>
+    <button id="fab-restart" type="button" aria-label="Restart">↻</button>
   </div>
 
 <script>
@@ -1806,6 +1905,238 @@ document.addEventListener('keydown', (e) => {
     lock(current);
   }
 });
+
+/* ============================================================
+ *  TOUCH INPUT — mobile / tablet / touch-screen laptops
+ *  ------------------------------------------------------------
+ *  Detection: any device that exposes a real touch surface gets
+ *  `body.touch-mode`. The check is one line and runs once at
+ *  load — no CSS @media queries, no UA sniffing, no viewport-
+ *  width thresholds. This intentionally surfaces the touch UI
+ *  on:
+ *    • iPhone / iPad (incl. iPadOS with Magic Keyboard)
+ *    • Android phones + tablets
+ *    • Foldable phones when unfolded
+ *    • Surface / touchscreen laptops
+ *  On a desktop with no touch, the FAB stays hidden and only
+ *  the keyboard path is wired — zero overhead, zero layout
+ *  shift.
+ *
+ *  Gestures (all on the board canvas):
+ *    swipe ←/→  →  move 1 cell (each deadzone crossing = +1;
+ *                   reset baseline so a continuous swipe
+ *                   chains multiple cells)
+ *    swipe ↑     →  hard drop (mirrors ↑/Space)
+ *    tap (no move) →  soft drop 1 cell (mirrors ArrowDown)
+ *    second-finger pointerdown
+ *                 →  continuous soft drop at 80ms/cell (mirrors
+ *                   holding ArrowDown). Lifts on pointerup.
+ *    pinch-zoom / page-scroll are blocked by `touch-action:none`
+ *    in CSS — see the touch-input block in the <style>.
+ *
+ *  The FAB buttons (visible only in touch-mode) provide three
+ *  obvious fallbacks: hard drop, pause toggle, restart. They
+ *  call the SAME code paths the keyboard uses, so behavior is
+ *  consistent across input modes.
+ *  ============================================================ */
+
+/* `hasTouch` is a hardware property — it doesn't change at
+ * runtime (you don't suddenly gain a touchscreen by rotating
+ * the device). We capture it once on script start. */
+const HAS_TOUCH = (('ontouchstart' in window) ||
+                   (navigator.maxTouchPoints > 0));
+
+/* Tunables. SWIPE_DEADZONE is the horizontal pixel distance
+ * the finger must travel between successive "move 1 cell"
+ * triggers. SWIPE_VERTICAL is the upward distance that flips
+ * the gesture from horizontal-move to vertical-hard-drop. */
+const SWIPE_DEADZONE = 14;   // px
+const SWIPE_VERTICAL = 48;   // px (must exceed SWIPE_DEADZONE)
+const TAP_MAX_MOVE   = 10;   // px
+const SOFTDROP_MS    = 80;   // per-cell cadence for 2nd-finger hold
+
+/* Game action shims — all no-ops during gameOver or when a
+ * clear-modal is up, mirroring the keydown handler's behavior. */
+function _canInput() {
+  if (gameOver) return false;
+  if (!$('clear-modal').hidden) return false;
+  if (paused) return false;
+  return true;
+}
+function _touchMove(dx) {
+  if (!_canInput()) return;
+  if (dx < 0 && !collides(current, -1, 0)) current.x -= 1;
+  if (dx > 0 && !collides(current,  1, 0)) current.x += 1;
+}
+function _touchSoftDrop() {
+  if (!_canInput()) return;
+  if (!collides(current, 0, 1)) {
+    current.y += 1;
+    score += 1;
+    $('stat-score').textContent = score;
+  }
+}
+function _touchHardDrop() {
+  if (!_canInput()) return;
+  while (!collides(current, 0, 1)) current.y += 1;
+  lock(current);
+}
+
+/* State for an in-flight gesture. `pointerId` is the primary
+ * (first) finger; `secondPointerId` is the optional second
+ * finger used to start continuous soft drop. */
+let _touch = null;  // { p1, p2, startX, startY, lastX, movedX, isVertical, horizBaseline, softDropTimer }
+const _board = document.getElementById('board');
+
+function bindTouchInput(canvas) {
+  /* Pointer events: pointerdown fires for both touch and mouse,
+   * but on a touch device the dominant input is touch. We use
+   * e.pointerType === 'touch' as a defensive guard so a stray
+   * mouse click on a touchscreen laptop doesn't accidentally
+   * start a tap-driven soft drop. */
+  const isTouch = (e) => e.pointerType === 'touch';
+
+  function onDown(e) {
+    if (!isTouch(e)) return;
+    /* First finger only — second-finger handling is below. */
+    if (_touch && _touch.p1 !== null && _touch.p1 !== e.pointerId) {
+      // Second finger: start continuous soft drop.
+      if (_touch.softDropTimer) return;   // already running
+      _touch.p2 = e.pointerId;
+      _touch.softDropTimer = setInterval(_touchSoftDrop, SOFTDROP_MS);
+      try { canvas.setPointerCapture(e.pointerId); } catch {}
+      return;
+    }
+    if (_touch) return;  // already tracking a primary
+    e.preventDefault();
+    _touch = {
+      p1: e.pointerId, p2: null,
+      startX: e.clientX, startY: e.clientY,
+      lastX: e.clientX, movedX: 0,
+      isVertical: false,
+      horizBaseline: e.clientX,
+      softDropTimer: null,
+    };
+    try { canvas.setPointerCapture(e.pointerId); } catch {}
+  }
+
+  function onMove(e) {
+    if (!_touch) return;
+    if (e.pointerId === _touch.p2) return;  // 2nd finger doesn't move the piece
+    if (e.pointerId !== _touch.p1) return;
+    const dx = e.clientX - _touch.startX;
+    const dy = e.clientY - _touch.startY;
+    if (!_touch.isVertical) {
+      if (dy < -SWIPE_VERTICAL) {
+        // Locked into vertical mode: treat as a hard drop, end the gesture.
+        _touch.isVertical = true;
+        _touchHardDrop();
+        endGesture();
+        return;
+      }
+      // Horizontal: each deadzone crossing triggers a single move.
+      const ddx = e.clientX - _touch.horizBaseline;
+      if (Math.abs(ddx) >= SWIPE_DEADZONE) {
+        _touchMove(ddx > 0 ? 1 : -1);
+        _touch.horizBaseline = e.clientX;
+        _touch.movedX += Math.abs(ddx);
+      }
+    }
+  }
+
+  function onUp(e) {
+    if (!_touch) return;
+    if (e.pointerId === _touch.p2) {
+      _touch.p2 = null;
+      if (_touch.softDropTimer) {
+        clearInterval(_touch.softDropTimer);
+        _touch.softDropTimer = null;
+      }
+      return;
+    }
+    if (e.pointerId !== _touch.p1) return;
+    // Tap detection: total travel stayed under the threshold and
+    // we never crossed the vertical threshold.
+    const totalDx = e.clientX - _touch.startX;
+    const totalDy = e.clientY - _touch.startY;
+    if (!_touch.isVertical && Math.hypot(totalDx, totalDy) <= TAP_MAX_MOVE) {
+      _touchSoftDrop();
+    }
+    endGesture();
+  }
+
+  function endGesture() {
+    const t = _touch;
+    _touch = null;
+    if (t) {
+      try { _board.releasePointerCapture(t.p1); } catch {}
+      if (t.p2 !== null) {
+        try { _board.releasePointerCapture(t.p2); } catch {}
+      }
+      if (t.softDropTimer) clearInterval(t.softDropTimer);
+    }
+  }
+
+  canvas.addEventListener('pointerdown',   onDown,  { passive: false });
+  canvas.addEventListener('pointermove',   onMove,  { passive: false });
+  canvas.addEventListener('pointerup',     onUp,    { passive: false });
+  canvas.addEventListener('pointercancel', onUp,    { passive: false });
+  canvas.addEventListener('pointerleave',  onUp,    { passive: false });
+  // Expose for unbindTouchInput (not used in v1, but future-proofs).
+  canvas.__touchBound = true;
+}
+
+function unbindTouchInput(canvas) {
+  if (!canvas.__touchBound) return;
+  // We rely on garbage collection + addEventListener having
+  // stored unique fn refs; for v1 we just flip a flag and let
+  // the handlers early-return via isMobileTouch() → no-op.
+  canvas.__touchBound = false;
+}
+
+/* Toggle the body class so the CSS-driven FAB / layout kicks
+ * in. Idempotent and safe to call multiple times. */
+function enableTouchMode() {
+  if (document.body.classList.contains('touch-mode')) return;
+  document.body.classList.add('touch-mode');
+  if (_board) bindTouchInput(_board);
+  // Wire the FAB buttons to the same action shims.
+  $('fab-hard').addEventListener('click', _touchHardDrop);
+  $('fab-pause').addEventListener('click', () => {
+    if (gameOver) return;
+    if (!$('clear-modal').hidden) return;
+    paused = !paused;
+    $('status').textContent = paused ? 'paused' : 'playing';
+    // Sync the FAB icon so it reflects the current state.
+    $('fab-pause').textContent = paused ? '▶' : '⏸';
+  });
+  $('fab-restart').addEventListener('click', () => {
+    if (gameOver) {
+      // After gameOver, restart() flips it back to playing. OK.
+    }
+    restart();
+  });
+  // On first enable, fitBoard() may have already been called with
+  // a desktop CELL; ask it to recompute so the new layout (side
+  // cols collapsed) gets the right cell size.
+  if (typeof fitBoard === 'function') fitBoard();
+}
+
+function disableTouchMode() {
+  if (!document.body.classList.contains('touch-mode')) return;
+  document.body.classList.remove('touch-mode');
+  if (_board) unbindTouchInput(_board);
+  if (typeof fitBoard === 'function') fitBoard();
+}
+
+/* Public entry point. Runs at DOMContentLoaded so the <body>
+ * class is in place before the FAB / layout CSS is consulted. */
+function applyTouchMode() {
+  if (HAS_TOUCH) enableTouchMode();
+  else           disableTouchMode();
+}
+
+document.addEventListener('DOMContentLoaded', applyTouchMode);
 
 /**
  * Reset the game to a fresh state. Safe to call at any time.

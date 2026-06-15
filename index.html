@@ -1621,31 +1621,33 @@ function lock(piece) {
  * ----------------------------------- */
 
 /**
- * Try to find and clear an idiom involving the just-locked cell
- * at (px, py). Clears at most one idiom per call; cascade
- * detection happens later via scanAllForIdioms() after gravity.
+ * Try to find and clear an idiom. Clears at most one idiom per
+ * call; cascade detection happens via the recursive call inside
+ * clearIdiomAt() after gravity.
  *
- * Detection is in 4 priority phases:
- *   (A)   Direct neighbors: 3 adjacent cells in a straight line
- *         in one of 4 directions, types matching v-d-n or n-d-v.
- *   (A')  Same line with 0-2 empty gaps between cells.
- *   (B)   Row scan on the locked cell's own row.
- *   (B')  Whole-board scan (catches anything that lined up from
- *         a previous cascade).
+ * Rule (relaxed from a strict straight-line V-D-N match):
+ *   The 3 component cells must form a 4-connected cluster — i.e.
+ *   at least one cell in the triple is 4-adjacent (shares an edge)
+ *   to another cell in the triple. This covers straight lines,
+ *   L-shapes, and triangles; "curved" non-straight layouts work
+ *   as long as the cells stay adjacent with no foreign word
+ *   blocking the way.
+ *   The 3 cells are then matched against the pool in any of the
+ *   6 V/D/N orderings: V-D-N, V-N-D, D-V-N, D-N-V, N-V-D, N-D-V.
+ *   (The pool keys are stored as `verb|det|noun`, so the matching
+ *   layer just permutes the role assignment per trial.)
+ *
+ * Two phases:
+ *   (1) LOCAL: 4-connected triples that include the just-locked
+ *       cell (px, py). Fast — at most 18 candidate triples.
+ *   (2) WHOLE-BOARD: every 4-connected triple on the grid, deduped
+ *       by sorted position signature. Catches cascades where
+ *       gravity lined up a new triple that doesn't touch (px, py).
  *
  * @param {number} px  - column of the cell that just locked
  * @param {number} py  - row    of the cell that just locked
  */
 function checkIdiomClear(px, py) {
-  /* Find ALL valid v-d-n idioms that touch the just-locked cell (px,py).
-     Two formation patterns are allowed:
-       (A) DIRECT NEIGHBOR: the 3 cells are in a straight line, every
-           cell in between is empty (the just-locked cell may sit in the
-           middle or at either end).  1-2 cell gaps allowed.
-       (B) ROW SCAN: any 3 consecutive cells in this row forming v-d-n.
-     For each valid cluster, the 3 cells are cleared and the idiom is
-     surfaced in a toast. Up to 2 clusters cleared per lock. */
-
   const found = new Set();
   const tryEmit = (cells, key) => {
     const sig = cells.map(([x,y]) => `${x},${y}`).sort().join('|');
@@ -1661,118 +1663,88 @@ function checkIdiomClear(px, py) {
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) return null;
     return grid[cy][cx];
   };
-  const isEmpty = (cx, cy) => {
-    const c = cellAt(cx, cy);
-    return c && c.type === 'empty';
+
+  /* All 6 V/D/N orderings are accepted — we just look up the
+     pool key as "verb|det|noun", so any arrangement of the 3
+     component cells that contains one of each role is a match. */
+  const findRole = (cells, role) => cells.find(c => c && c.type === role);
+
+  /* Test 3 cells at positions p1/p2/p3. Returns {cells, key} on
+     a clearable idiom, else null. Tries the 6 V/D/N arrangements
+     implicitly by picking out the verb, det, noun among the 3
+     cells and looking up the canonical "verb|det|noun" key. */
+  const tryTriple = (p1, p2, p3) => {
+    const c1 = cellAt(p1[0], p1[1]);
+    const c2 = cellAt(p2[0], p2[1]);
+    const c3 = cellAt(p3[0], p3[1]);
+    if (!c1 || !c1.word || !c2 || !c2.word || !c3 || !c3.word) return null;
+    const verb = findRole([c1, c2, c3], 'verb');
+    const det  = findRole([c1, c2, c3], 'det');
+    const noun = findRole([c1, c2, c3], 'noun');
+    if (!verb || !det || !noun) return null;
+    const key = `${verb.word}|${det.word}|${noun.word}`;
+    if (POOL.lookup[key]) return { cells: [p1, p2, p3], key };
+    return null;
   };
 
-  /* (A) DIRECT NEIGHBOR: scan 4 directions for v-d-n with 0, 1, or 2 empty gaps.
-     The 3 cells must be in a straight line (horizontal or vertical).
-     The just-locked cell (px,py) is one of the 3 (not necessarily the verb). */
-  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-  for (const [dx, dy] of dirs) {
-    for (const layout of [
-      /* v d n  */  ['verb', 'det', 'noun'],
-      /* n d v  */  ['noun', 'det', 'verb'],  // reverse direction
-    ]) {
-      /* offsets from (px,py) for each role */
-      const offs = [
-        [0, 0],
-        [dx, dy],
-        [2*dx, 2*dy],
-      ];
-      const cells = offs.map(([ox, oy]) => [px + ox, py + oy]);
-      const inBounds = cells.every(([x,y]) => x >= 0 && x < COLS && y >= 0 && y < ROWS);
-      if (!inBounds) continue;
-      const types = layout;
-      const cellVals = cells.map(([x,y]) => grid[y][x]);
-      const typeMatch = cellVals.every((c, i) => c.type === types[i] && c.word);
-      if (!typeMatch) continue;
-      /* No "foreign" word in between — since cells are adjacent, the between
-         cells ARE the cells themselves, so no check needed for offset 0/1/2. */
-      const v = layout[0] === 'verb' ? cellVals[0] : cellVals[2];
-      const d = cellVals[1];
-      const n = layout[0] === 'verb' ? cellVals[2] : cellVals[0];
-      const key = `${v.word}|${d.word}|${n.word}`;
-      if (POOL.lookup[key]) {
-        if (tryEmit(cells, key)) return;
+  /* 8-neighbors (king's move): all cells sharing an edge or a
+     corner with (x,y). The 3 cells are matched as a "hub + 2
+     leaves" king's-move polyline. 8-connectivity is the minimal
+     rule that accepts any 3-cell bent line, including the "stair"
+     L where the middle cell is on the inside of the bend
+     (e.g. (1,3)-(2,3)-(3,2) — straight + diagonal). This strictly
+     generalises 4-connectivity, so straight lines, L-shapes and
+     T-stems from the previous rule all still match. */
+  const n8 = (x, y) => {
+    const out = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+        out.push([nx, ny]);
+      }
+    }
+    return out;
+  };
+
+  /* (1) LOCAL CHECK — every 8-connected triple containing (px,py).
+       (px,py) is the hub; pick 2 of its 8 king-neighbors. */
+  const locked = cellAt(px, py);
+  if (locked && locked.word) {
+    const ns = n8(px, py);
+    for (let i = 0; i < ns.length; i++) {
+      for (let j = i + 1; j < ns.length; j++) {
+        const a = ns[i], b = ns[j];
+        if (!cellAt(a[0], a[1]) || !cellAt(a[0], a[1]).word) continue;
+        if (!cellAt(b[0], b[1]) || !cellAt(b[0], b[1]).word) continue;
+        const m = tryTriple([px, py], a, b);
+        if (m && tryEmit(m.cells, m.key)) return;
       }
     }
   }
 
-  /* (A-extension) STRAIGHT LINE WITH 1-2 EMPTY GAPS, starting from (px,py).
-     Search 4 directions for the closest v (or n), then a d in between, then n (or v). */
-  for (const [dx, dy] of dirs) {
-    for (const targetEnd of ['verb', 'noun']) {
-      /* The locked cell is the MIDDLE or one of the ends. Try "locked" as middle: */
-      if (targetEnd === 'noun') {
-        /* find first v in direction (dx,dy), with det in between */
-        let blocked = false;
-        for (let step = 1; step <= 4; step++) {
-          const farCell = cellAt(px + step*dx, py + step*dy);
-          if (!farCell) { blocked = true; break; }
-          if (farCell.type !== 'verb') continue;
-          if (step < 2) continue;
-          const detCell = cellAt(px + dx, py + dy);
-          if (!detCell || detCell.type !== 'det') continue;
-          for (let k = 2; k < step; k++) {
-            if (!isEmpty(px + k*dx, py + k*dy)) { blocked = true; break; }
-          }
-          if (blocked) continue;
-          const key = `${farCell.word}|${detCell.word}|${cellAt(px,py).word}`;
-          if (POOL.lookup[key] && cellAt(px,py).type === 'noun') {
-            const cells = [[px+step*dx,py+step*dy],[px+dx,py+dy],[px,py]];
-            if (tryEmit(cells, key)) return;
-          }
+  /* (2) WHOLE-BOARD SCAN — every 8-connected triple, deduped by
+     sorted position signature. Catches cascades where gravity
+     just produced a triple that doesn't touch (px, py). */
+  const seen = new Set();
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const head = cellAt(x, y);
+      if (!head || !head.word) continue;
+      const ns = n8(x, y);
+      for (let i = 0; i < ns.length; i++) {
+        for (let j = i + 1; j < ns.length; j++) {
+          const a = ns[i], b = ns[j];
+          if (!cellAt(a[0], a[1]) || !cellAt(a[0], a[1]).word) continue;
+          if (!cellAt(b[0], b[1]) || !cellAt(b[0], b[1]).word) continue;
+          const cells = [[x, y], a, b];
+          const sig = cells.map(p => p.join(',')).sort().join('|');
+          if (seen.has(sig)) continue;
+          seen.add(sig);
+          const m = tryTriple([x, y], a, b);
+          if (m && tryEmit(m.cells, m.key)) return;
         }
-      } else {
-        /* find first n in direction (dx,dy), with det in between, locked cell = verb */
-        let blocked = false;
-        for (let step = 1; step <= 4; step++) {
-          const farCell = cellAt(px + step*dx, py + step*dy);
-          if (!farCell) { blocked = true; break; }
-          if (farCell.type !== 'noun') continue;
-          if (step < 2) continue;
-          const detCell = cellAt(px + dx, py + dy);
-          if (!detCell || detCell.type !== 'det') continue;
-          for (let k = 2; k < step; k++) {
-            if (!isEmpty(px + k*dx, py + k*dy)) { blocked = true; break; }
-          }
-          if (blocked) continue;
-          const key = `${cellAt(px,py).word}|${detCell.word}|${farCell.word}`;
-          if (POOL.lookup[key] && cellAt(px,py).type === 'verb') {
-            const cells = [[px,py],[px+dx,py+dy],[px+step*dx,py+step*dy]];
-            if (tryEmit(cells, key)) return;
-          }
-        }
-      }
-    }
-  }
-
-  /* (B) ROW SCAN: any 3 consecutive cells in this row forming v-d-n. */
-  for (let start = 0; start + 2 < COLS; start++) {
-    const a = grid[py][start], b = grid[py][start+1], c = grid[py][start+2];
-    if (!a.word || !b.word || !c.word) continue;
-    if (a.type !== 'verb' || b.type !== 'det' || c.type !== 'noun') continue;
-    const key = `${a.word}|${b.word}|${c.word}`;
-    if (POOL.lookup[key]) {
-      const positions = [[start,py],[start+1,py],[start+2,py]];
-      if (tryEmit(positions, key)) return;
-    }
-  }
-
-  /* (B-extension) WHOLE-BOARD SCAN if no immediate clear.
-     Find ANY v-d-n triple on the same row, anywhere, regardless of distance
-     to (px,py). Skip if any of the 3 cells is currently being animated. */
-  for (let row = 0; row < ROWS; row++) {
-    for (let start = 0; start + 2 < COLS; start++) {
-      const a = grid[row][start], b = grid[row][start+1], c = grid[row][start+2];
-      if (!a.word || !b.word || !c.word) continue;
-      if (a.type !== 'verb' || b.type !== 'det' || c.type !== 'noun') continue;
-      const key = `${a.word}|${b.word}|${c.word}`;
-      if (POOL.lookup[key]) {
-        const positions = [[start,row],[start+1,row],[start+2,row]];
-        if (tryEmit(positions, key)) return;
       }
     }
   }

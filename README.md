@@ -44,6 +44,24 @@ python3 -m http.server 8765
 The pool is embedded directly in `index.html`, so the game runs from
 `file://` with no static server.
 
+### Idiom clear: the pause-and-read modal
+
+When a v-d-n cluster clears, a small modal pops up over the board
+with the idiom and both meaning translations (the primary language
+is the one selected by the `Meaning` pill — default English, toggle
+to 中文 with one click). The game pauses while the modal is up, so
+the learner has a moment to read instead of a "good job" flicker.
+
+A `Modal` pill in the right HUD controls how long the modal stays
+up before auto-closing: **1s · 2.5s · 5s · ∞**. The default is
+2.5s. The **∞** (manual) option leaves the modal up until the user
+dismisses it via X / Got it / Esc / P. The choice persists across
+page reloads via `localStorage` under
+`idiom-tetris.pause-dur-ms`. The two HUD pills (`Meaning` and
+`Modal`) stay clickable while the modal is up — flipping the
+meaning language or changing the duration live-re-renders the
+currently-visible modal without needing a new clear.
+
 ### Game over & sharing
 
 When you die, a modal pops up with three options:
@@ -95,7 +113,7 @@ of gameplay that declarative study doesn't:
   act of production, and repeating it a hundred times in a session
   builds the procedural memory that idiom use actually depends on.
 - **Feedback with semantic content.** When a v-d-n cluster clears,
-  the toast doesn't just say "good job" — it surfaces the idiom
+  a small modal pops up — not a flicker — that surfaces the idiom
   itself (`hold your horses`) and its meaning in the learner's
   preferred language (default: English; toggleable to 中文 via the
   `Meaning` pill in the right HUD). The learner sees the productive

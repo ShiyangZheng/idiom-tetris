@@ -383,6 +383,94 @@
   .share-status.ok { color: var(--clear); }
   .share-status.err { color: #ef4444; }
 
+  /* ---------- Name input row (game-over modal) ---------- */
+  .name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0 16px 0;
+  }
+  .name-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    flex: 0 0 auto;
+  }
+  .name-input {
+    flex: 1 1 auto;
+    background: #1a1d2b;
+    border: 1px solid #2a2e3f;
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    outline: none;
+  }
+  .name-input:focus { border-color: var(--accent); }
+  .name-input::placeholder { color: var(--text-dim); font-weight: 400; }
+
+  /* ---------- Leaderboard modal ---------- */
+  .leaderboard-card { min-width: 360px; }
+  .lb-list {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 16px 0;
+    max-height: 50vh;
+    overflow-y: auto;
+    text-align: left;
+  }
+  .lb-list li {
+    display: grid;
+    grid-template-columns: 56px 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+    border-bottom: 1px solid #2a2e3f;
+    font-variant-numeric: tabular-nums;
+  }
+  .lb-list li:last-child { border-bottom: none; }
+  .lb-list .lb-rank {
+    font-weight: 700;
+    color: var(--text-dim);
+    text-align: center;
+    white-space: nowrap;
+  }
+  .lb-list .lb-name {
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lb-list .lb-score {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .lb-list .lb-cleared {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .lb-list .lb-medal { font-size: 16px; }
+  /* Top-3 highlight (gold/silver/bronze). */
+  .lb-list li:nth-child(1) .lb-rank { color: #fbbf24; }
+  .lb-list li:nth-child(2) .lb-rank { color: #d1d5db; }
+  .lb-list li:nth-child(3) .lb-rank { color: #d97706; }
+  /* The local user's row, when matched, is highlighted. */
+  .lb-list li.lb-mine {
+    background: rgba(192, 132, 252, 0.10);
+    border-radius: 4px;
+  }
+  .lb-list .lb-empty {
+    display: block;
+    text-align: center;
+    color: var(--text-dim);
+    padding: 24px 8px;
+    font-size: 13px;
+  }
+
 </style>
 <!-- ============================================================
      EMBEDDED IDIOM POOL
@@ -448,14 +536,16 @@
         </div>
       </div>
       <button id="restart" class="restart-mini">Restart</button>
+      <button id="btn-view-lb" class="restart-mini">🏆 Leaderboard</button>
       <div class="status-mini"><span id="status">playing</span></div>
     </aside>
   </div>
 
   <!-- ============================================================
        Game-over modal (hidden until gameOver flips). Shows final
-       stats and offers Share to social + Skip. Renders above the
-       board via z-index 1000.
+       stats, lets the player enter a name and submit to the
+       global leaderboard, and offers Share to social + Skip.
+       Renders above the board via z-index 1000.
        ============================================================ -->
   <div id="gameover-modal" class="gameover-modal" hidden>
     <div class="gameover-card">
@@ -464,11 +554,34 @@
         <div><span class="lbl">Score</span><span class="val" id="final-score">0</span></div>
         <div><span class="lbl">Cleared</span><span class="val" id="final-cleared">0</span></div>
       </div>
+      <div class="name-row">
+        <label for="lb-name" class="name-label">Your name</label>
+        <input id="lb-name" class="name-input" type="text" maxlength="12"
+               autocomplete="off" spellcheck="false" placeholder="e.g. shiyang">
+      </div>
       <div class="modal-actions">
-        <button id="btn-share" class="btn-primary">Share screenshot</button>
+        <button id="btn-submit-lb" class="btn-primary">Submit to leaderboard</button>
+        <button id="btn-share" class="btn-secondary">Share</button>
         <button id="btn-skip" class="btn-text">Skip</button>
       </div>
       <div id="share-status" class="share-status"></div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       Leaderboard modal (hidden until the user clicks "View
+       leaderboard" in the side panel or after a successful
+       submit). Shows top 50 from the Cloudflare Worker; falls
+       back to a localStorage mock if the worker is unreachable.
+       ============================================================ -->
+  <div id="leaderboard-modal" class="gameover-modal" hidden>
+    <div class="gameover-card leaderboard-card">
+      <h2>🏆 Leaderboard</h2>
+      <div id="lb-status" class="share-status"></div>
+      <ol id="lb-list" class="lb-list"></ol>
+      <div class="modal-actions">
+        <button id="btn-lb-close" class="btn-secondary">Close</button>
+      </div>
     </div>
   </div>
 
@@ -1558,12 +1671,12 @@ loadPool().then(() => {
    * drawNext() no-ops (board is being painted by draw() anyway). */
   bootComplete = true;
   drawNext();        // paint the side panel now that `next` exists
-  /* initModals() is defined in the post-html2canvas <script>
-   * block below. Function declarations are NOT hoisted across
-   * separate <script> tags — the second <script> hasn't parsed
-   * yet when this callback runs, so `initModals` is still
-   * `undefined` here. Wait for `DOMContentLoaded`, which fires
-   * after every <script> in the document has been parsed. */
+  /* initModals() is defined in the second <script> block below.
+   * Function declarations are NOT hoisted across separate
+   * <script> tags — the second <script> hasn't parsed yet when
+   * this callback runs, so `initModals` is still `undefined` here.
+   * Wait for `DOMContentLoaded`, which fires after every <script>
+   * in the document has been parsed. */
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       if (typeof initModals === 'function') initModals();
@@ -1579,25 +1692,31 @@ loadPool().then(() => {
 });
 </script>
 
-<!-- ============================================================
-     html2canvas — small dep, vendored from a CDN with a local
-     fallback comment if you want to fully self-host. Used by the
-     "Share screenshot" button in the game-over modal to compose
-     a PNG of the whole page (board + side panels + final stats).
-     ============================================================ -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
 <script>
 "use strict";
 
 /* ============================================================
- *  Game-over modal + share system
+ *  Game-over modal + share + leaderboard
  *  ------------------------------------------------------------
  *  When the game ends, a modal pops up showing the final score
- *  and offering Share-to-screenshot (via html2canvas). There is
- *  no leaderboard — the player is in charge of where their score
- *  lives, and we don't persist anything in localStorage.
+ *  and cleared count, an optional name input for submitting to
+ *  the global leaderboard, and a "Share" button that hands a
+ *  text+url payload to the OS share sheet (no screenshot).
+ *
+ *  Leaderboard backend: a Cloudflare Worker + KV (see worker/
+ *  in this repo). `WORKER_URL` below should point at the deployed
+ *  worker. If it's blank, the leaderboard buttons degrade
+ *  gracefully (Submit is disabled, View shows a hint).
  *  ============================================================ */
+
+/* ---------- Config ---------- */
+const SHARE_URL  = 'https://shiyangzheng.top/idiom-tetris/';
+const WORKER_URL = '';   // ← paste your Cloudflare Worker URL here
+const LEADERBOARD_LIMIT = 50;  // top-N shown in the modal
+const LEADERBOARD_LOCAL_KEY = 'idiom-tetris:leaderboard-local-mock';
+/* When WORKER_URL is empty, the game falls back to a localStorage-only
+ * "mock" leaderboard so you can still see the UI work end-to-end during
+ * development. Set WORKER_URL to a real worker to publish globally. */
 
 /* ---------- Modal control ----------
  * showModal/hideModal just flip the [hidden] attribute. We also
@@ -1629,140 +1748,300 @@ function initModals() {
     _wasGameOver = isGameOver;
   }).observe(statusEl, { childList: true, subtree: true, characterData: true });
 
-  /* Modal buttons */
-  $('btn-share').addEventListener('click', onShareScreenshot);
+  /* Game-over modal buttons */
+  $('btn-submit-lb').addEventListener('click', onSubmitLeaderboard);
+  $('btn-share').addEventListener('click', onShare);
   $('btn-skip').addEventListener('click', () => hideModal('gameover-modal'));
+
+  /* Side-panel "Leaderboard" button: opens the leaderboard modal
+   * at any time (you don't have to die first). */
+  $('btn-view-lb').addEventListener('click', () => showLeaderboard());
+
+  /* Leaderboard modal: Enter on the name field submits. */
+  $('lb-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); onSubmitLeaderboard(); }
+  });
+  $('btn-lb-close').addEventListener('click', () => hideModal('leaderboard-modal'));
+
+  /* If WORKER_URL is empty, the Submit button is disabled and we
+   * tell the user once. */
+  if (!WORKER_URL) {
+    $('btn-submit-lb').disabled = true;
+    $('btn-submit-lb').title = 'Leaderboard backend not configured (WORKER_URL is empty)';
+  }
 }
 
 /* ---------- Game over hook ----------
- * Populate the final-stats display and show the modal. */
+ * Populate the final-stats display, prefill the name input from
+ * localStorage, and show the modal. */
 function onGameOver() {
   $('final-score').textContent   = score.toLocaleString();
   $('final-cleared').textContent = cleared;
   $('share-status').textContent  = '';
   $('share-status').className    = 'share-status';
+  /* Pre-fill the name field with the last name the user submitted
+   * under, so most players only have to click Submit, not retype. */
+  const lastName = (() => { try { return localStorage.getItem('idiom-tetris:last-name') || ''; } catch { return ''; } })();
+  $('lb-name').value = lastName;
   showModal('gameover-modal');
 }
 
-/* ---------- Share screenshot ----------
- * Use html2canvas to render the whole <body> into a PNG, then
- * hand it to the OS share sheet via navigator.share(). The system
- * share sheet on iOS / macOS / Android automatically lists every
- * installed app that accepts the share extension — WeChat, X
- * (Twitter), Instagram, LinkedIn, Messages, Mail, etc. — so we
- * don't need to wire up each platform individually.
+/* ---------- Share ----------
+ * Hand a text+url payload to the OS share sheet via
+ * navigator.share(). The system share sheet on iOS / macOS /
+ * Android automatically lists every installed app that accepts
+ * the share extension — WeChat, X (Twitter), Instagram, LinkedIn,
+ * Messages, Mail, etc. — so we don't need to wire up each
+ * platform individually.
  *
- * Layered fallbacks:
- *   1. canShare({files})    — full share: image + text + url
- *   2. navigator.share      — text + url (no image), still routes
- *                             through the system share sheet
- *   3. PNG download         — last resort for browsers without
- *                             any share-sheet support
+ * We no longer render a screenshot. The text is the share: it
+ * states the player's score and cleared count, and invites the
+ * recipient to try the game via the link. (See worker/ in this
+ * repo for the optional leaderboard side of the story.)
+ *
+ * Fallbacks:
+ *   1. navigator.share     — text+url via the system share sheet
+ *   2. copy-to-clipboard   — older desktop browsers without any
+ *                            share-sheet support
  */
-const SHARE_URL = 'https://shiyangzheng.top/idiom-tetris/';
-async function onShareScreenshot() {
+async function onShare() {
   const status = $('share-status');
-  const btn   = $('btn-share');
-  if (typeof html2canvas === 'undefined') {
-    status.textContent = 'html2canvas failed to load — check network.';
-    status.className = 'share-status err';
-    return;
-  }
-  /* Guard against double-clicks while we're still rendering or
-   * waiting on the OS share sheet. Re-enable in finally. */
+  const btn    = $('btn-share');
   if (btn.disabled) return;
   btn.disabled = true;
-  status.textContent = 'Rendering screenshot…';
-  status.className = 'share-status';
+  status.textContent = 'Opening share sheet…';
+  status.className   = 'share-status';
+
+  const shareText =
+    `I just scored ${score.toLocaleString()} in Idiom Tetris ` +
+    `(cleared ${cleared} idioms)!\n` +
+    `Think you can beat me? Play here: ${SHARE_URL}`;
+  const shareTitle = 'Idiom Tetris';
+
   try {
-    const canvas = await html2canvas(document.body, {
-      backgroundColor: '#0f121e',
-      scale: 2,  // retina
-      logging: false,
-    });
-    if (!canvas) throw new Error('html2canvas returned an empty canvas');
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
-    if (!blob) throw new Error('canvas.toBlob produced no PNG');
-    const file = new File([blob], `idiom-tetris-${Date.now()}.png`, { type: 'image/png' });
-
-    const shareText =
-      `I scored ${score.toLocaleString()} in Idiom Tetris! ` +
-      `Cleared ${cleared} idioms. Can you beat it?`;
-    const shareTitle = 'Idiom Tetris';
-
-    /* 1. Full share: image + text + url (if the platform can
-     *    share files). iOS / macOS Safari, Chrome on Android, etc.
-     *    The receiving app gets both the image and the context
-     *    (text + link back to the game). */
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          title: shareTitle,
-          text:  shareText,
-          url:   SHARE_URL,
-          files: [file],
-        });
-        status.textContent = 'Shared!';
-        status.className = 'share-status ok';
-      } catch (e) {
-        /* The OS share sheet is dismissable — a user-initiated
-         * cancel is NOT a failure, it's the expected way to back
-         * out. Don't paint that as a red error. */
-        if (e && (e.name === 'AbortError' || /cancel/i.test(e.message || ''))) {
-          status.textContent = 'Share canceled.';
-          status.className = 'share-status';  /* neutral, not err */
-        } else {
-          throw e;  /* re-raise for the outer catch */
-        }
-      }
-      return;
-    }
-
-    /* 2. Text-only share via the system share sheet. Works on
-     *    browsers that support navigator.share but not file
-     *    sharing. The system sheet still lists WeChat / X / IG /
-     *    LinkedIn / Messages — the user just pastes the screenshot
-     *    manually in the receiving app. */
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: shareTitle,
-          text:  shareText,
-          url:   SHARE_URL,
-        });
-        status.textContent = 'Shared! (Add the screenshot in the app)';
-        status.className = 'share-status ok';
+        await navigator.share({ title: shareTitle, text: shareText, url: SHARE_URL });
+        status.textContent = 'Shared!';
+        status.className   = 'share-status ok';
       } catch (e) {
+        /* OS share sheet dismissable → user-cancel is not an error. */
         if (e && (e.name === 'AbortError' || /cancel/i.test(e.message || ''))) {
           status.textContent = 'Share canceled.';
-          status.className = 'share-status';
+          status.className   = 'share-status';
         } else {
           throw e;
         }
       }
-      return;
+    } else {
+      /* No share-sheet support: copy text to clipboard. */
+      await copyToClipboard(shareText);
+      status.textContent = 'Copied to clipboard! Paste it into WeChat / X / LinkedIn…';
+      status.className   = 'share-status ok';
     }
-
-    /* 3. No share-sheet support at all (rare older desktop
-     *    browsers): download the PNG so the user can post it
-     *    manually. */
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    status.textContent = 'Downloaded! Post it to X, LinkedIn, WeChat, Instagram…';
-    status.className = 'share-status ok';
   } catch (e) {
     status.textContent = 'Share failed: ' + (e && e.message ? e.message : e);
-    status.className = 'share-status err';
+    status.className   = 'share-status err';
   } finally {
     btn.disabled = false;
   }
 }
+
+async function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  /* Old-browser fallback: hidden textarea + execCommand. */
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'absolute';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } finally { ta.remove(); }
+}
+
+/* ---------- Leaderboard ----------
+ * Three flows:
+ *   1. Submit (game-over modal): POST {name, score, cleared} to
+ *      WORKER_URL. Server returns {rank, total} → we show the
+ *      rank in the status line and (optionally) open the modal.
+ *   2. View (side panel or post-submit): GET /leaderboard, render
+ *      top 50. Falls back to a localStorage "mock" if WORKER_URL
+ *      is empty or the request fails (offline / blocked).
+ *   3. Empty/no-backend state: clear status text + empty <ol>.
+ *
+ * Validation runs in two places: the worker (authoritative) AND
+ * the client (to avoid a wasted round trip on a clearly bad
+ * input). They share the same regex; if they drift the worker
+ * rejects with 400 and the client shows the error.
+ */
+const LB_NAME_RE = /^[\p{L}\p{N}_\- \p{Extended_Pictographic}]{1,12}$/u;
+
+async function onSubmitLeaderboard() {
+  const status = $('share-status');    /* re-use the slot under the buttons */
+  const btn    = $('btn-submit-lb');
+  if (btn.disabled) return;
+  const raw = ($('lb-name').value || '').trim();
+  if (!LB_NAME_RE.test(raw)) {
+    status.textContent = 'Name must be 1-12 letters / digits / space / _ / - / emoji.';
+    status.className   = 'share-status err';
+    return;
+  }
+  if (!WORKER_URL) {
+    status.textContent = 'Leaderboard backend not configured (WORKER_URL is empty).';
+    status.className   = 'share-status err';
+    return;
+  }
+  btn.disabled = true;
+  status.textContent = 'Submitting…';
+  status.className   = 'share-status';
+  try {
+    const r = await fetchWithTimeout(`${WORKER_URL.replace(/\/+$/, '')}/submit`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ name: raw, score, cleared }),
+    }, 8000);
+    if (!r.ok) {
+      const errBody = await safeJson(r);
+      throw new Error(errBody && errBody.error || `HTTP ${r.status}`);
+    }
+    const { rank, total } = await r.json();
+    /* Persist the name so the next game pre-fills the input. */
+    try { localStorage.setItem('idiom-tetris:last-name', raw); } catch {}
+    status.textContent = `🎉 You're rank #${rank} of ${total}! Click "🏆 Leaderboard" to see.`;
+    status.className   = 'share-status ok';
+  } catch (e) {
+    status.textContent = 'Submit failed: ' + (e && e.message ? e.message : e);
+    status.className   = 'share-status err';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function showLeaderboard() {
+  const statusEl = $('lb-status');
+  const listEl   = $('lb-list');
+  statusEl.textContent = 'Loading…';
+  statusEl.className   = 'share-status';
+  listEl.innerHTML     = '';
+  showModal('leaderboard-modal');
+
+  let entries = [];
+  let source  = '';   // 'remote' | 'local' | ''
+  if (WORKER_URL) {
+    try {
+      const r = await fetchWithTimeout(`${WORKER_URL.replace(/\/+$/, '')}/leaderboard`, {}, 8000);
+      if (r.ok) {
+        const j = await r.json();
+        entries = (j && Array.isArray(j.entries)) ? j.entries : [];
+        source  = 'remote';
+      } else {
+        throw new Error(`HTTP ${r.status}`);
+      }
+    } catch (e) {
+      /* Fall through to the local mock. */
+      const local = readLocalMock();
+      entries = local;
+      source  = 'local';
+      statusEl.textContent = `Couldn't reach leaderboard (${e.message || e}). Showing your local scores.`;
+      statusEl.className   = 'share-status err';
+    }
+  } else {
+    entries = readLocalMock();
+    source  = 'local';
+    statusEl.textContent = 'Leaderboard backend not configured — showing your local scores.';
+    statusEl.className   = 'share-status';
+  }
+
+  renderLeaderboard(entries, /*highlightName=*/readLastName());
+
+  if (source === 'remote' && entries.length === 0) {
+    statusEl.textContent = 'No scores yet — be the first!';
+    statusEl.className   = 'share-status';
+  } else if (source === 'remote') {
+    statusEl.textContent = `Top ${entries.length} of ${entries.length}+ players`;
+    statusEl.className   = 'share-status';
+  }
+  /* Persist the latest remote snapshot to local storage as a
+   * "best known" backup; on the next submit we'll also update it
+   * so a freshly-submitted row is visible in the local mock. */
+  if (source === 'remote') writeLocalMock(entries);
+}
+
+function renderLeaderboard(entries, highlightName) {
+  const listEl = $('lb-list');
+  listEl.innerHTML = '';
+  if (!entries || entries.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'lb-empty';
+    li.textContent = 'No scores yet. Play a game and submit to claim the first spot!';
+    listEl.appendChild(li);
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const e of entries) {
+    const li = document.createElement('li');
+    if (highlightName && e.name === highlightName) li.classList.add('lb-mine');
+    const rank = document.createElement('span');
+    rank.className = 'lb-rank';
+    rank.textContent = e.rank;
+    if (e.rank === 1) rank.textContent = '🥇 ' + e.rank;
+    else if (e.rank === 2) rank.textContent = '🥈 ' + e.rank;
+    else if (e.rank === 3) rank.textContent = '🥉 ' + e.rank;
+    const name = document.createElement('span');
+    name.className = 'lb-name';
+    name.textContent = e.name;  /* safe: set as text, not innerHTML */
+    const score = document.createElement('span');
+    score.className = 'lb-score';
+    score.textContent = e.score.toLocaleString();
+    const cleared = document.createElement('span');
+    cleared.className = 'lb-cleared';
+    cleared.textContent = `${e.cleared} clr`;
+    li.append(rank, name, score, cleared);
+    frag.appendChild(li);
+  }
+  listEl.appendChild(frag);
+}
+
+/* ---------- Local-storage mock (used when WORKER_URL is empty
+ *  or the remote is unreachable) ---------- */
+function readLocalMock() {
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_LOCAL_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .sort((a, b) => b.score - a.score || a.ts - b.ts)
+      .slice(0, LEADERBOARD_LIMIT)
+      .map((e, i) => ({ rank: i + 1, name: e.name, score: e.score, cleared: e.cleared, when: e.ts }));
+  } catch { return []; }
+}
+function writeLocalMock(entries) {
+  try {
+    /* Strip the rank field the server adds — recompute on read. */
+    const slim = entries.map(({ rank, ...rest }) => rest);
+    localStorage.setItem(LEADERBOARD_LOCAL_KEY, JSON.stringify(slim));
+  } catch {}
+}
+function readLastName() {
+  try { return localStorage.getItem('idiom-tetris:last-name') || ''; } catch { return ''; }
+}
+
+/* ---------- Network helpers ---------- */
+async function fetchWithTimeout(url, opts, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: ctl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+async function safeJson(r) { try { return await r.json(); } catch { return null; } }
 </script>
 </body>
 </html>

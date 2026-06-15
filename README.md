@@ -46,23 +46,30 @@ The pool is embedded directly in `index.html`, so the game runs from
 
 ### Game over & sharing
 
-When you die, a modal pops up with two options:
+When you die, a modal pops up with three options:
 
-- **Share screenshot** — renders the full page to a PNG via
-  html2canvas, then hands it to the **native OS share sheet**
-  with `navigator.share({title, text, url, files})`. The system
-  sheet auto-lists every installed app that accepts the share
+- **Submit to leaderboard** — sends `{name, score, cleared}` to a
+  Cloudflare Worker + KV (see [the leaderboard section](#-leaderboard)
+  below). The worker replies with the player's rank and the
+  total submission count, which we show inline. Names are
+  1–12 letters / digits / space / `_` / `-` / emoji, and the
+  server enforces 5 submits per IP per hour.
+- **Share** — hands a text+url payload
+  (`I just scored X in Idiom Tetris (cleared Y idioms)! Think
+  you can beat me? Play here: <url>`) to the **native OS share
+  sheet** via `navigator.share()`. The system sheet
+  auto-lists every installed app that accepts the share
   extension, so on iOS / macOS / Android you'll see WeChat,
   X, Instagram, LinkedIn, Messages, Mail, etc. without any
-  per-platform code. Browsers that don't support file sharing
-  still get a text+link share through the same sheet; the
-  rare browser with no share-sheet support at all just
-  downloads the PNG for you to post manually.
+  per-platform code. Browsers that don't support `navigator.share`
+  fall back to copying the same text to the clipboard.
 - **Skip** — close the modal.
 
-The game keeps no record of your score — it lives only in the
-session that produced it. If you want a souvenir, the share
-button is the only way out.
+The side panel also has a **🏆 Leaderboard** button that opens
+the global top-50 at any time (not just after a death). It
+shows `rank · name · score · cleared` with 🥇/🥈/🥉 medals on
+the top 3, and highlights your own row if you've submitted
+under a name that's still in the top 50.
 
 ---
 
@@ -288,9 +295,74 @@ on this repo.
 ├── index.html              # The whole game (HTML + CSS + JS + pool)
 ├── idioms_compact.json     # Same pool as JSON (fallback / source-of-truth)
 ├── build_pool.py           # Re-embed idioms_compact.json into index.html
+├── worker/                 # Optional Cloudflare Worker for the leaderboard
+│   ├── index.js            # The Worker (3 endpoints, no npm deps)
+│   └── wrangler.toml       # KV bindings + deploy config
 ├── LICENSE                 # MIT for code, CC-BY 4.0 for the idiom pool
 └── README.md               # You are here
 ```
+
+---
+
+## 🏆 Leaderboard
+
+The game has an optional global leaderboard backed by a
+[Cloudflare Worker](https://workers.cloudflare.com/) + KV.
+It's enabled by setting one config string in `index.html` and
+deploying the worker in `worker/` to your own Cloudflare
+account. The game runs fine without it — when `WORKER_URL` is
+empty, the leaderboard modal shows a local-only mock from
+`localStorage` so you can still see the UI work end-to-end
+during development.
+
+### API
+
+| Method | Path | Body | Response |
+| --- | --- | --- | --- |
+| `GET`  | `/healthz`     | — | `{ok, count, lastTs}` |
+| `GET`  | `/leaderboard` | — | `{entries: [{rank, name, score, cleared, when}]}` (top 50) |
+| `POST` | `/submit`      | `{name, score, cleared}` | `200 {rank, total}` · `400 {error}` · `429 {error}` |
+
+### Anti-spam
+
+- Per IP: 5 submits per rolling hour (KV `RATE` namespace).
+- Per name: 1–12 letters / digits / space / `_` / `-` / emoji.
+- Per score: integer in `[0, 9_999_999]`; per cleared: `[0, 9_999]`.
+- Global cap: keep top 200 entries; older / lower entries are
+  trimmed on submit (background via `ctx.waitUntil`).
+
+### CORS
+
+`Access-Control-Allow-Origin: *` (with the request `Origin`
+mirrored back). The game is a public static page; the worker
+only stores public data.
+
+### Deploy
+
+```sh
+# 1. install wrangler (one-time)
+npm install -g wrangler
+wrangler login
+
+# 2. create three KV namespaces
+wrangler kv:namespace create LEADERBOARD_SCORES
+wrangler kv:namespace create LEADERBOARD_RATE
+wrangler kv:namespace create LEADERBOARD_META
+
+# 3. paste the three printed IDs into worker/wrangler.toml
+
+# 4. deploy
+cd worker
+wrangler deploy
+
+# 5. paste the printed *.workers.dev URL into index.html
+#    (the WORKER_URL config near the top of the second <script>).
+```
+
+The free tier (100K Worker requests/day, 100K KV reads/day)
+is more than enough for a personal leaderboard. If you self-
+host, any KV-compatible backend (Vercel KV, Upstash Redis)
+can be adapted with the same shape.
 
 The 611 idioms are released under **CC-BY 4.0** — if you use
 them in a derivative study, please cite the original source

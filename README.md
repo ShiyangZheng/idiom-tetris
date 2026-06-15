@@ -95,8 +95,7 @@ under a name that's still in the top 50.
 
 Second-language idiom learning has a long-standing problem: the
 **idiomaticity gap**. Learners can usually parse the literal meaning
-of *"hold your horses"* (verb "hold" + possessive determiner "your"
-+ plural noun "horses") but cannot retrieve the figurative meaning
+of *"hold your horses"* (verb "hold" + possessive determiner "your" + plural noun "horses") but cannot retrieve the figurative meaning
 ("be patient") under production pressure. This is true even at high
 proficiency, and it survives years of classroom exposure. Standard
 declarative study — flashcards, vocabulary lists, glosses — produces

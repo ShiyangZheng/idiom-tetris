@@ -172,7 +172,6 @@
   /* Hidden variant of toast-secondary: when the user has picked
      one meaning language we suppress the other language's slot
      to keep the toast visually compact. */
-  .toast-hidden { display: none; }
   .status-mini {
     text-align: center;
     font-size: 11px;
@@ -202,47 +201,6 @@
   .controls kbd {
     background: #1a1d2b; padding: 1px 6px; border-radius: 3px;
     font-family: monospace; color: var(--text);
-  }
-  .toast-overlay {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%) scale(0.6);
-    pointer-events: none;
-    opacity: 0;
-    text-align: center;
-    background: rgba(26, 29, 43, 0.94);
-    border: 2px solid var(--clear);
-    border-radius: 12px;
-    padding: 20px 32px;
-    box-shadow: 0 0 60px rgba(16, 185, 129, 0.6);
-    min-width: 320px;
-    max-width: 480px;
-  }
-  .toast-overlay.show {
-    animation: toastPop 1.6s ease-out forwards;
-  }
-  @keyframes toastPop {
-    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
-    15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
-    25%  { transform: translate(-50%, -50%) scale(1.0); }
-    80%  { opacity: 1; }
-    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9) translateY(-30px); }
-  }
-  .toast-idiom {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--clear);
-    margin-bottom: 6px;
-  }
-  .toast-cn {
-    font-size: 16px;
-    color: #fef3c7;
-  }
-  .toast-en {
-    font-size: 13px;
-    color: var(--text-dim);
-    margin-top: 6px;
-    font-style: italic;
   }
   button {
     background: var(--accent);
@@ -485,6 +443,103 @@
     font-size: 13px;
   }
 
+  /* ---------- Idiom-clear (pause) modal ----------
+   * Pops up after a v-d-n triple clears. Pauses the game and
+   * shows the idiom + both meaning translations so the user can
+   * study at their own pace. Duration is controlled by the
+   * "Modal" toggle in the right HUD (1s / 2.5s / 5s / Manual).
+   * Reuses .gameover-modal backdrop and .gameover-card shell
+   * so the two modals feel like siblings. */
+  /* Backdrop is pointer-events: none so the user can still reach
+   * the EN/中 and "Modal" toggles in the HUD while the modal is
+   * up (the live re-render wiring in updateLangToggleUI /
+   * updatePauseDurUI swaps the meaning + restarts the countdown
+   * the moment the user clicks the HUD). The card itself keeps
+   * the default `pointer-events: auto`, so its X / Got-it buttons
+   * are still clickable. Backdrop-to-close is intentionally
+   * disabled for this modal — use X, Got it, Escape, or P. */
+  #clear-modal { pointer-events: none; }
+  #clear-modal .gameover-card { pointer-events: auto; }
+  .clear-card {
+    position: relative;
+    min-width: 320px;
+    max-width: 380px;
+    padding: 32px 28px 22px;
+    /* The max-width is intentionally narrower than the game-over
+     * modal's card so the centered card never overlaps the right
+     * HUD's "Meaning" and "Modal" toggles — that overlap would
+     * make those buttons unclickable while the modal is up, which
+     * breaks the live-re-render UX (click EN/中 or change
+     * duration while the modal is showing). */
+  }
+  .clear-close {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 26px;
+    font-weight: 400;
+    line-height: 1;
+    padding: 2px 8px;
+    width: auto;
+    border-radius: 4px;
+  }
+  .clear-close:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .clear-idiom {
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--clear);
+    letter-spacing: 0.5px;
+    margin-bottom: 14px;
+  }
+  .clear-meaning {
+    line-height: 1.45;
+    margin-bottom: 6px;
+    word-wrap: break-word;
+  }
+  .clear-meaning.prim {
+    font-size: 17px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .clear-meaning.sec {
+    font-size: 13px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+  .clear-progress {
+    height: 3px;
+    background: rgba(192, 132, 252, 0.18);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 14px 0 14px;
+  }
+  .clear-progress-bar {
+    height: 100%;
+    width: 100%;
+    background: var(--accent);
+    transform-origin: left center;
+  }
+  .clear-progress-bar.shrinking {
+    animation: clearProgressShrink linear forwards;
+  }
+  @keyframes clearProgressShrink {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+  }
+  /* Click pulse on the "Got it" button so it visually pulses once
+   * when the modal opens, drawing the eye to the dismiss action. */
+  .clear-continue {
+    margin-top: 4px;
+    animation: clearContinuePulse 1.8s ease-out 0.3s 1;
+  }
+  @keyframes clearContinuePulse {
+    0%   { box-shadow: 0 0 0 0 rgba(192, 132, 252, 0.55); }
+    70%  { box-shadow: 0 0 0 8px rgba(192, 132, 252, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(192, 132, 252, 0); }
+  }
+
 </style>
 <!-- ============================================================
      EMBEDDED IDIOM POOL
@@ -524,11 +579,6 @@
 
     <div class="board-wrap">
       <canvas id="board" width="300" height="600"></canvas>
-      <div class="toast-overlay" id="toast">
-        <div class="toast-idiom" id="toast-idiom"></div>
-        <div class="toast-cn" id="toast-cn"></div>
-        <div class="toast-en" id="toast-en"></div>
-      </div>
     </div>
 
     <aside class="side-col right" aria-label="Game info (right)">
@@ -554,6 +604,15 @@
         <div class="lang-toggle" id="lang-toggle" role="group" aria-label="Meaning language">
           <button class="toggle-mini" data-lang="en" id="btn-lang-en" aria-pressed="true" type="button">EN</button>
           <button class="toggle-mini" data-lang="zh" id="btn-lang-zh" aria-pressed="false" type="button">中</button>
+        </div>
+      </div>
+      <div class="mini-stat">
+        <div class="mini-label">Modal</div>
+        <div class="lang-toggle" id="pause-toggle" role="group" aria-label="Pause modal duration">
+          <button class="toggle-mini" data-dur="1000" id="btn-pause-1" aria-pressed="false" type="button">1s</button>
+          <button class="toggle-mini" data-dur="2500" id="btn-pause-25" aria-pressed="true" type="button">2.5s</button>
+          <button class="toggle-mini" data-dur="5000" id="btn-pause-5" aria-pressed="false" type="button">5s</button>
+          <button class="toggle-mini" data-dur="0" id="btn-pause-manual" aria-pressed="false" type="button">∞</button>
         </div>
       </div>
       <button id="restart" class="restart-mini">Restart</button>
@@ -603,6 +662,30 @@
       <div class="modal-actions">
         <button id="btn-lb-close" class="btn-secondary">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       Idiom-clear (pause) modal — pops up the moment a v-d-n
+       triple clears, freezes the game, and shows the idiom +
+       both meaning translations. Duration is controlled by the
+       "Modal" pill in the right HUD (1s / 2.5s / 5s / ∞=manual).
+       The .clear-progress-bar shrinks left-to-right over the
+       chosen duration; in manual mode the bar is hidden and the
+       modal stays open until the user clicks Got it / X / Esc /
+       the backdrop. aria-live="polite" announces the meaning to
+       screen readers without interrupting the play.
+       ============================================================ -->
+  <div id="clear-modal" class="gameover-modal" hidden aria-live="polite">
+    <div class="gameover-card clear-card" role="dialog" aria-modal="true" aria-labelledby="clear-idiom">
+      <button class="clear-close" id="clear-close" type="button" aria-label="Close">×</button>
+      <div class="clear-idiom" id="clear-idiom"></div>
+      <div class="clear-meaning prim" id="clear-meaning-prim"></div>
+      <div class="clear-meaning sec"  id="clear-meaning-sec"></div>
+      <div class="clear-progress" id="clear-progress">
+        <div class="clear-progress-bar" id="clear-progress-bar"></div>
+      </div>
+      <button class="btn-primary clear-continue" id="clear-continue" type="button">Got it</button>
     </div>
   </div>
 
@@ -1256,7 +1339,7 @@ function checkIdiomClear(px, py) {
 function clearIdiomAt(cx, cy, positions, key) {
   /* positions: array of 3 [x,y] coordinates of the cells forming the idiom. */
   const entry = POOL.lookup[key];
-  showToast(entry);
+  showClearModal(entry);
 
   let ticks = 0;
   const animate = () => {
@@ -1518,50 +1601,90 @@ function draw() {
   }
 }
 
-/* ---------- Toast / particles ----------
- * showToast() briefly displays the cleared idiom above the board
- * (idiom + Chinese gloss + English example). spawnParticles()
- * creates a short-lived Web-Animations-API burst at the centroid
- * of the cleared cells, layered on top of the canvas via DOM.
+/* ---------- Clear (pause) modal + particles ----------
+ * showClearModal() opens a centered modal showing the cleared
+ * idiom and BOTH meaning translations (primary in the user's
+ * chosen language, secondary in the other). The game pauses for
+ * the duration chosen in the HUD "Modal" pill (1s / 2.5s / 5s /
+ * ∞=manual). The .clear-progress-bar shrinks left-to-right so
+ * the user has a visible countdown in the auto-close modes.
+ *
+ * spawnParticles() creates a short-lived Web-Animations-API
+ * burst at the centroid of the cleared cells, layered on top
+ * of the canvas via DOM.
  * ------------------------------------- */
 
 /**
- * Show the cleared idiom's full form + meaning in the center
- * toast. The meaning language is controlled by `meaningLang`
- * (set by the EN / 中 toggle in the right panel). We always
- * render the selected language in the prominent `.toast-cn`
- * slot and hide the secondary `.toast-en` slot, keeping the
- * toast visually compact regardless of the chosen language.
- *
- * Falls back to `entry.cn` if the chosen language is missing
- * (e.g. a future entry without an `en` field) so the toast
- * never renders empty.
- *
- * We restart the CSS animation by toggling the `show` class
- * with a forced reflow in between.
+ * Show the cleared idiom in the pause modal. The game's
+ * `paused` flag is flipped on; the rAF loop keeps spinning
+ * (cheap — no state change) and resumes naturally when the
+ * modal closes. We re-render the currently-open modal in place
+ * (no fade-out + fade-in) when called back-to-back during a
+ * cascade, so the user just sees the content update.
  *
  * @param {{display:string, cn:string, en?:string}} entry - POOL.lookup value
  */
-function showToast(entry) {
+let clearModalTimer = null;
+function showClearModal(entry) {
   lastClearedEntry = entry;
-  const overlay = $('toast');
-  $('toast-idiom').textContent = entry.display;
-  let text;
-  if (meaningLang === 'en') {
-    text = entry.en || entry.cn || '';
+  /* Render content. The primary slot holds the language the
+   * user picked with the EN / 中 pill; the secondary slot
+   * always shows the other language (italic, dimmer) so the
+   * modal is bilingual by design — the user is paused and
+   * studying, not glancing. */
+  $('clear-idiom').textContent = entry.display;
+  const isEn = meaningLang === 'en';
+  const prim = $('clear-meaning-prim');
+  const sec  = $('clear-meaning-sec');
+  if (isEn) {
+    prim.textContent = entry.en || entry.cn || '';
+    prim.className   = 'clear-meaning prim is-en';
+    sec.textContent  = entry.cn || '';
+    sec.className    = 'clear-meaning sec is-zh';
   } else {
-    text = entry.cn || '';
+    prim.textContent = entry.cn || '';
+    prim.className   = 'clear-meaning prim is-zh';
+    sec.textContent  = entry.en || '';
+    sec.className    = 'clear-meaning sec is-en';
   }
-  $('toast-cn').textContent = text;
-  // Hide the secondary slot in both modes — user explicitly
-  // picked one language, no need to repeat the other as a
-  // small italic line.
-  const enSlot = $('toast-en');
-  enSlot.textContent = '';
-  enSlot.classList.add('toast-hidden');
-  overlay.classList.remove('show');
-  void overlay.offsetWidth; // restart animation
-  overlay.classList.add('show');
+  sec.hidden = !sec.textContent;   // hide the secondary line if the entry is monolingual
+  /* Pause the game. status line stays as-is; the modal IS the
+   * visible pause indicator. */
+  paused = true;
+  /* Show modal. */
+  $('clear-modal').hidden = false;
+  /* Reset any prior timer. */
+  if (clearModalTimer) { clearTimeout(clearModalTimer); clearModalTimer = null; }
+  /* Auto-close countdown. In manual (pauseDur === 0) we hide
+   * the progress bar and leave the modal up until the user
+   * explicitly dismisses it. */
+  const bar = $('clear-progress-bar');
+  if (pauseDur > 0) {
+    $('clear-progress').hidden = false;
+    bar.style.animationDuration = pauseDur + 'ms';
+    bar.classList.remove('shrinking');
+    void bar.offsetWidth;          // force reflow → restart animation
+    bar.classList.add('shrinking');
+    clearModalTimer = setTimeout(closeClearModal, pauseDur);
+  } else {
+    $('clear-progress').hidden = true;
+    bar.classList.remove('shrinking');
+  }
+}
+
+/**
+ * Close the clear modal and resume the game. Idempotent —
+ * safe to call when the modal is already closed. Also called
+ * by the auto-close timer, the Got-it button, the X button,
+ * a backdrop click, and the Escape / P keys.
+ */
+function closeClearModal() {
+  if (clearModalTimer) { clearTimeout(clearModalTimer); clearModalTimer = null; }
+  const m = $('clear-modal');
+  if (m.hidden) return;
+  m.hidden = true;
+  paused = false;
+  $('clear-progress-bar').classList.remove('shrinking');
 }
 
 /**
@@ -1651,6 +1774,20 @@ function loop(t) {
  */
 document.addEventListener('keydown', (e) => {
   if (gameOver) return;
+  /* Escape / P with the clear-modal open: dismiss it (and
+   * resume the game). The P key is a "user wants to act" key
+   * when the modal is up, not a manual pause toggle. */
+  if (!$('clear-modal').hidden) {
+    if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+      e.preventDefault();
+      closeClearModal();
+      return;
+    }
+    /* Any other key (arrows, space) is swallowed while the
+     * modal is up so the player can't accidentally hard-drop
+     * a piece behind the backdrop. */
+    return;
+  }
   if (e.key === 'p' || e.key === 'P') { paused = !paused; $('status').textContent = paused ? 'paused' : 'playing'; return; }
   if (paused) return;
   if (e.key === 'ArrowLeft') {
@@ -1679,29 +1816,32 @@ $('restart').addEventListener('click', restart);
 
 /* ---------- Meaning language toggle ----------
  * The EN / 中 pill in the right HUD controls which language
- * the cleared-idiom toast shows as the prominent meaning.
- * Persists across page reloads via localStorage. Default is
- * 'en' (English) per the latest UX call. The actual rendering
- * happens in showToast(); this block owns the state, the
- * visual pressed-state of the two buttons, and the live
- * re-render of the *currently visible* toast so the user
- * sees the language change immediately on click.
+ * is the "primary" meaning inside the cleared-idiom pause
+ * modal (the other language is shown as smaller italic
+ * secondary text). Persists across page reloads via
+ * localStorage. Default is 'en' (English) per the latest UX
+ * call. The actual rendering happens in showClearModal();
+ * this block owns the state, the visual pressed-state of the
+ * two buttons, and the live re-render of the *currently
+ * visible* modal so the user sees the language swap
+ * immediately on click.
  * ------------------------------------- */
 const MEANING_LANG_KEY = 'idiom-tetris.meaning-lang';
 let meaningLang = (localStorage.getItem(MEANING_LANG_KEY) === 'zh') ? 'zh' : 'en';
 // Cache the most recent cleared-idiom entry so the toggle can
-// re-render the live toast if the user clicks while a clear
-// animation is still on screen. Null until the first clear.
+// re-render the live modal if the user clicks while a clear
+// is on screen. Null until the first clear.
 let lastClearedEntry = null;
 
 function updateLangToggleUI() {
   $('btn-lang-en').setAttribute('aria-pressed', String(meaningLang === 'en'));
   $('btn-lang-zh').setAttribute('aria-pressed', String(meaningLang === 'zh'));
-  // Live re-render: if a toast is currently up, swap its text
-  // immediately. showToast() also restarts the CSS animation,
-  // which gives a small "pop" feedback that the language
-  // actually changed.
-  if (lastClearedEntry) showToast(lastClearedEntry);
+  // Live re-render: if a modal is currently up, swap its text
+  // immediately so the user sees the language change without
+  // having to wait for the next idiom to clear.
+  if (!$('clear-modal').hidden && lastClearedEntry) {
+    showClearModal(lastClearedEntry);
+  }
 }
 $('btn-lang-en').addEventListener('click', () => {
   if (meaningLang === 'en') return;
@@ -1717,6 +1857,59 @@ $('btn-lang-zh').addEventListener('click', () => {
 });
 updateLangToggleUI();
 
+/* ---------- Pause-time (modal duration) toggle ----------
+ * Controls how long the cleared-idiom modal stays up before
+ * auto-closing. Four options: 1s, 2.5s, 5s, and ∞ (manual —
+ * stays open until the user clicks Got it / X / Esc / the
+ * backdrop). Default is 2.5s. Persists in localStorage.
+ * "0" in localStorage means manual. */
+const PAUSE_DUR_KEY = 'idiom-tetris.pause-dur-ms';
+const PAUSE_DUR_VALID = new Set([1000, 2500, 5000, 0]);
+let pauseDur = (() => {
+  /* On first visit `getItem` returns `null`. `Number(null)` is 0,
+   * which would fall inside PAUSE_DUR_VALID (manual-mode) and
+   * silently default a brand-new user to "modal stays open
+   * forever". Treat null separately so the default is 2.5s. */
+  const raw = localStorage.getItem(PAUSE_DUR_KEY);
+  if (raw === null) return 2500;
+  const n = Number(raw);
+  return PAUSE_DUR_VALID.has(n) ? n : 2500;
+})();
+
+function updatePauseDurUI() {
+  $('btn-pause-1').setAttribute('aria-pressed',      String(pauseDur === 1000));
+  $('btn-pause-25').setAttribute('aria-pressed',     String(pauseDur === 2500));
+  $('btn-pause-5').setAttribute('aria-pressed',      String(pauseDur === 5000));
+  $('btn-pause-manual').setAttribute('aria-pressed', String(pauseDur === 0));
+  // Live re-render: if a modal is up, re-open it with the new
+  // duration so the user sees the change immediately (e.g.
+  // bumps 1s → 5s, modal stays for 5s from now).
+  if (!$('clear-modal').hidden && lastClearedEntry) {
+    showClearModal(lastClearedEntry);
+  }
+}
+$('btn-pause-1').addEventListener('click',      () => { if (pauseDur === 1000) return; pauseDur = 1000; localStorage.setItem(PAUSE_DUR_KEY, '1000'); updatePauseDurUI(); });
+$('btn-pause-25').addEventListener('click',     () => { if (pauseDur === 2500) return; pauseDur = 2500; localStorage.setItem(PAUSE_DUR_KEY, '2500'); updatePauseDurUI(); });
+$('btn-pause-5').addEventListener('click',      () => { if (pauseDur === 5000) return; pauseDur = 5000; localStorage.setItem(PAUSE_DUR_KEY, '5000'); updatePauseDurUI(); });
+$('btn-pause-manual').addEventListener('click', () => { if (pauseDur === 0)    return; pauseDur = 0;    localStorage.setItem(PAUSE_DUR_KEY, '0');    updatePauseDurUI(); });
+updatePauseDurUI();
+
+/* ---------- Clear modal: dismiss wiring ----------
+ * Five ways to close: Got it button, X button, backdrop click,
+ * Escape, and P (which also doubles as "unpause" elsewhere).
+ * We attach these on init so the handlers are wired up once
+ * after the DOM is fully parsed. */
+function initClearModal() {
+  $('clear-close').addEventListener('click', closeClearModal);
+  $('clear-continue').addEventListener('click', closeClearModal);
+  /* Backdrop click: only fire if the click target is the
+   * backdrop itself, not anything inside the card. */
+  $('clear-modal').addEventListener('click', (e) => {
+    if (e.target === $('clear-modal')) closeClearModal();
+  });
+}
+initClearModal();
+
 function restart() {
   grid = makeGrid();
   cleared = 0; score = 0; lines = 0; level = 1;
@@ -1724,6 +1917,9 @@ function restart() {
   gameOver = false;
   paused = false;
   dropInterval = 800;
+  /* If a clear-modal is up (paused mid-clear), close it so
+   * the new game starts cleanly. */
+  closeClearModal();
   $('stat-cleared').textContent = '0';
   $('stat-score').textContent = '0';
   /* stat-lines is intentionally absent from the redesigned mini
@@ -1773,6 +1969,23 @@ loadPool().then(() => {
 }).catch(err => {
   console.error('boot failed:', err);
 });
+
+/* ---------- Test surface ----------
+ * Playwright tests (page.evaluate) need to read internal state
+ * from outside the script. Top-level `let` bindings in a
+ * non-module script live in the script's lexical environment
+ * and are NOT attached to `window`, so reads of `window.POOL`
+ * etc. return `undefined`. We mirror them here as live
+ * getters/setters so the tests always see the current value.
+ * `configurable: true` so any later hot-reload that re-defines
+ * them doesn't throw. */
+Object.defineProperty(window, 'POOL',             { get: () => POOL,             configurable: true });
+Object.defineProperty(window, 'paused',           { get: () => paused,           configurable: true });
+Object.defineProperty(window, 'pauseDur',         { get: () => pauseDur,         configurable: true });
+Object.defineProperty(window, 'meaningLang',      { get: () => meaningLang,      configurable: true });
+Object.defineProperty(window, 'lastClearedEntry', { get: () => lastClearedEntry,
+                                                    set: (v) => { lastClearedEntry = v; },
+                                                    configurable: true });
 </script>
 
 <script>
@@ -1862,6 +2075,10 @@ function onGameOver() {
   $('final-cleared').textContent = cleared;
   $('share-status').textContent  = '';
   $('share-status').className    = 'share-status';
+  /* If a clear-modal is still up (cascade that ended in a
+   * top-out), dismiss it so the game-over modal is the only
+   * thing the player sees. */
+  closeClearModal();
   /* Pre-fill the name field with the last name the user submitted
    * under, so most players only have to click Submit, not retype. */
   const lastName = (() => { try { return localStorage.getItem('idiom-tetris:last-name') || ''; } catch { return ''; } })();

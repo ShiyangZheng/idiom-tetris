@@ -1882,7 +1882,7 @@ async function copyToClipboard(text) {
  * input). They share the same regex; if they drift the worker
  * rejects with 400 and the client shows the error.
  */
-const LB_NAME_RE = /^[\p{L}\p{N}_\- \p{Extended_Pictographic}]{1,12}$/u;
+const LB_NAME_RE = /^[\p{L}\p{N}_\- ]{1,12}$/u;
 
 async function onSubmitLeaderboard() {
   const status = $('share-status');    /* re-use the slot under the buttons */
@@ -1890,7 +1890,7 @@ async function onSubmitLeaderboard() {
   if (btn.disabled) return;
   const raw = ($('lb-name').value || '').trim();
   if (!LB_NAME_RE.test(raw)) {
-    status.textContent = 'Name must be 1-12 letters / digits / space / _ / - / emoji.';
+    status.textContent = 'Name must be 1-12 letters / digits / space / _ / -.';
     status.className   = 'share-status err';
     return;
   }

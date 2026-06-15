@@ -26,14 +26,15 @@
     --text-dim: #9aa0b4;  /* secondary text (hints, sub-labels) */
     --accent: #c084fc;    /* highlight color (badges) */
     --clear: #10b981;     /* success color (cleared counter) */
-    /* Vertical pixels that the title + subtitle + side HUD + FAB
-     * consume in each layout mode. fitBoard() subtracts this from
-     * the visible viewport height to compute the canvas cell size
-     * (availH = visibleH - HEADER_PX - FAB_ROW_PX). The desktop
-     * value (80) is just the title+subtitle chrome; the touch
-     * value (280) also accounts for the side HUD chip row that
-     * stacks above the board and the FAB row below it. JS reads
-     * this via getComputedStyle(body).getPropertyValue(...). */
+    /* Vertical pixels that the title + subtitle + side HUD consume
+     * in each layout mode. fitBoard() subtracts this from the visible
+     * viewport height to compute the canvas cell size
+     * (availH = visibleH - HEADER_PX; FAB_ROW_PX is 0 in v7 because
+     * the FAB is `position: fixed` and doesn't participate in
+     * layout). The desktop value (80) is just the title+subtitle
+     * chrome; the touch value (204) also accounts for the side HUD
+     * chip row that stacks above the board. JS reads this via
+     * getComputedStyle(body).getPropertyValue(...). */
     --header-reserved-px: 80px;
   }
   * { box-sizing: border-box; }
@@ -578,25 +579,48 @@
   .touch-fab { display: none; }
   body.touch-mode .touch-fab { display: flex; }
 
-  /* The .board-wrap is the *parent flex container* holding the
-   * canvas (top) and the FAB row (bottom). On touch-mode the
-   * FAB moves from a fixed-overlay position to an inline sibling
-   * of the canvas, so it can never overlap the playfield. */
+  /* The .board-wrap is the parent flex container of the canvas
+   * (and, in touch mode, the .touch-fab — but the FAB is now
+   * position:fixed, so it's removed from the flex flow and the
+   * board-wrap's height is just the canvas + its own padding).
+   * The FAB being fixed means it overlays the bottom of the
+   * viewport instead of pushing the board-wrap taller, which is
+   * what was causing the FAB to land below the fold on iPhone SE. */
   body.touch-mode .board-wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    /* Reserve a touch of room under the FAB for the iOS home
-     * indicator. The `max(...)` keeps the safe area on notched
-     * phones without adding dead space on older devices. */
-    padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+    /* The FAB is now `position: fixed` (see below), so the board-wrap
+     * no longer needs to reserve room for it. Keep a small bottom
+     * padding for visual breathing room; the iOS safe-area inset is
+     * handled by the FAB itself, not by inflating the board-wrap. */
+    padding-bottom: 8px;
   }
 
   .touch-fab {
-    /* Inline static positioning — sits below the canvas, never
-     * overlaps it. fitBoard() accounts for the row's pixel
-     * height (FAB_ROW_PX) so the board still fills the screen. */
+    /* v7 fix: position the FAB as a fixed overlay at the bottom of
+     * the viewport so it's always reachable, even on short phones
+     * (iPhone SE etc.) where the body content would otherwise push
+     * the FAB below the fold.
+     *
+     * Why this doesn't break setPointerCapture (the v5 regression):
+     * v5 locked the BODY with `position: fixed + height: 100dvh +
+     * overflow: hidden`, which changed the root scroller and made
+     * setPointerCapture report coords against the wrong scroller.
+     * Here we only fix the FAB, not the body — the body remains in
+     * normal flow (v6's naturally-scrollable layout) and the canvas
+     * keeps capturing pointers normally. The FAB is a transparent
+     * overlay with `pointer-events: none` on the wrapper and
+     * `pointer-events: auto` only on the button circles, so a
+     * horizontal swipe on the canvas (above the FAB row) goes
+     * straight to the canvas's pointermove handler regardless of
+     * the FAB's positioning. */
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: max(8px, env(safe-area-inset-bottom, 8px));
+    justify-content: center;
     gap: 14px;
     z-index: 50;
     /* The wrapper itself is non-interactive so a stray tap on
@@ -630,6 +654,73 @@
   .board-wrap.tap-pulse {
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
     transition: box-shadow 60ms ease-out;
+  }
+
+  /* v9: touch-mode "how to play" help card. Sits inside
+   * .board-wrap (flex column, gap:10px from canvas) so it scrolls
+   * with the board, but is hidden on desktop so the page stays
+   * compact. */
+  .touch-how {
+    display: none;
+    width: 100%;
+    box-sizing: border-box;
+    max-width: 320px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(20, 24, 40, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-dim);
+    /* The canvas draws text; the help card is purely informational,
+     * so the renderer should never be told to "redraw me". */
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body.touch-mode .touch-how { display: block; }
+  .touch-how-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .touch-how-row:last-of-type { margin-bottom: 0; }
+  .touch-how-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    font-size: 13px;
+    line-height: 1;
+    color: var(--text);
+  }
+  .touch-how-text { flex: 1; }
+  .touch-how-fab-row {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    font-size: 11px;
+  }
+  .touch-how-fab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text);
+    font-size: 12px;
   }
 
   /* Mobile layout: on narrow screens + touch-mode, collapse the
@@ -695,7 +786,14 @@
    *  the body's scroll position). */
   body.touch-mode {
     overscroll-behavior: none;
-    --header-reserved-px: 280px;
+    /* v7: FAB is `position: fixed` now, so the layout no longer needs
+     * to reserve a FAB_ROW_PX (76) below the canvas. 280 → 204.
+     * The chip-row above the board (the collapsed left side-col)
+     * still consumes ~124px, plus the title + subtitle chrome at
+     * the top (~80px) → 80 + 124 = 204. The board sizes itself to
+     * fitBoard()'s availH = visibleH - 204, which on iPhone SE
+     * (667px) gives 463px of board height ≈ 21px cells. */
+    --header-reserved-px: 204px;
   }
 </style>
 <!-- ============================================================
@@ -775,6 +873,25 @@
 
     <div class="board-wrap">
       <canvas id="board" width="300" height="600"></canvas>
+      <div class="touch-how" aria-label="How to play on touch">
+        <div class="touch-how-row">
+          <span class="touch-how-icon">←</span><span class="touch-how-icon">→</span>
+          <span class="touch-how-text">Swipe to move</span>
+        </div>
+        <div class="touch-how-row">
+          <span class="touch-how-icon">↑</span>
+          <span class="touch-how-text">Hard drop</span>
+        </div>
+        <div class="touch-how-row">
+          <span class="touch-how-icon">✌</span>
+          <span class="touch-how-text">Hold a 2nd finger = soft drop</span>
+        </div>
+        <div class="touch-how-fab-row">
+          <span><span class="touch-how-fab">⤓</span> Hard</span>
+          <span><span class="touch-how-fab">⏸</span> Pause</span>
+          <span><span class="touch-how-fab">↻</span> Restart</span>
+        </div>
+      </div>
       <div class="touch-fab" role="toolbar" aria-label="Touch controls">
         <button id="fab-hard" type="button" aria-label="Hard drop">⤓</button>
         <button id="fab-pause" class="fab-pause" type="button" aria-label="Pause / resume">⏸</button>
@@ -1039,13 +1156,33 @@ function fitBoard() {
     getComputedStyle(document.body)
       .getPropertyValue('--header-reserved-px'), 10);
   const HEADER_PX  = Number.isFinite(_hdrVar) && _hdrVar > 0 ? _hdrVar : 80;
-  const SIDE_PX    = 100 + 100 + 96;     // 2 side-cols + gaps
-  /* On touch-mode the FAB row sits BELOW the canvas as an inline
-   * sibling, not as a fixed overlay. We must subtract its height
-   * (56px button + 10px gap to the canvas above + 10px safe-area
-   * padding underneath) from the available height budget so the
-   * board never gets clipped on short phones (iPhone SE etc.). */
-  const FAB_ROW_PX = document.body.classList.contains('touch-mode') ? 76 : 0;
+  /* v7: on touch + narrow the right side-col is `display: none` and
+   * the left side-col collapses into a horizontal mini-bar that
+   * stacks ABOVE the board (its width is 100% of the layout row,
+   * not 100px). So the side-cols no longer eat horizontal budget
+   * from the board. Setting SIDE_PX=0 in touch mode lets the
+   * width-driven cell calculation see the full viewport. Without
+   * this, SIDE_PX=296 on a 375px phone would clamp cellByW to
+   * (375-296-32)/10 ≈ 4.7px, forcing CELL up to cellMin even when
+   * the height budget could have given bigger cells. */
+  const SIDE_PX    = document.body.classList.contains('touch-mode') ? 0 : (100 + 100 + 96);
+  /* v8: even though the FAB is `position: fixed` (it doesn't
+   * participate in the document's layout flow), we still have to
+   * reserve vertical space for it. Why? Because the FAB is drawn
+   * at `bottom: max(8px, env(safe-area-inset-bottom, 8px))` — i.e.
+   * it always sits at the very bottom of the visible viewport. If
+   * fitBoard() sizes the board to the full visibleH, the board's
+   * bottom row lands underneath the FAB, and on short phones
+   * (visibleH≈640px after URL bar) the FAB actually covers the
+   * ghost-piece / bottom 1-2 rows, which makes the game
+   * unplayable. Subtracting FAB_RESERVED_PX from availH guarantees
+   * the board + header always leave room for the FAB. The actual
+   * vertical space the FAB takes = 56 (button) + 16 (bottom
+   * margin) + 8 (buffer) = 80px. We use 80 as a constant so the
+   * math here and the CSS in .touch-fab stay in lockstep — if
+   * the FAB geometry ever changes, this is the only number to
+   * update. */
+  const FAB_RESERVED_PX = 80;
   /* On iOS Safari, `100vh` includes the URL bar height which makes
    * the board cut off at the bottom whenever the bar is showing.
    * `100dvh` is the "dynamic viewport height" — it shrinks/grows
@@ -1057,7 +1194,7 @@ function fitBoard() {
                     && window.visualViewport.height > 0)
                    ? window.visualViewport.height
                    : window.innerHeight;
-  const availH = visibleH - HEADER_PX - FAB_ROW_PX;
+  const availH = visibleH - HEADER_PX - FAB_RESERVED_PX;
   const availW = window.innerWidth  - SIDE_PX - 32;   // -32 for body padding
   /* Pick the cell size that fits the viewport with both constraints.
      Width-driven limit on narrow windows, height-driven on short ones. */
@@ -1077,8 +1214,35 @@ function fitBoard() {
      and the board + FAB row would be ~30-50px taller than
      the visible area, forcing the user to scroll before they
      can see the action. */
-  const cellMin = document.body.classList.contains('touch-mode') ? 22 : 28;
-  CELL = Math.max(cellMin, Math.min(44, cellByH, cellByW));
+  /* v7: with the FAB fixed (no longer stealing ~80px of vertical
+   * budget) and SIDE_PX=0 on touch, we can afford a slightly
+   * smaller cellMin. 20 is still legible for short verb words
+   * ("act", "see") and the fontSize auto-shrinks for longer ones
+   * anyway (see drawWord). The reduction matters on iPhone SE
+   * (visibleH≈667) where 22*22=484px board + 80px header = 564
+   * — 20*22=440 + 80 = 520, leaving 47px of headroom so the chip
+   * row above the board never gets squeezed. */
+  const cellMin = document.body.classList.contains('touch-mode') ? 20 : 28;
+  let nextCell = Math.max(cellMin, Math.min(44, cellByH, cellByW));
+  /* v8: hysteresis — only apply CELL change if the new value
+   * differs from the current value by at least 2px. Why: on iOS
+   * the URL bar showing/hiding fires several rapid
+   * visualViewport.resize events (one per animation frame). If
+   * we recompute CELL on every event, the canvas resizes by 1-3px
+   * per frame, which the user perceives as "棋盘会不小心变宽" (the
+   * most common direction is URL bar hiding → CELL grows).
+   * 2px deadband absorbs sub-pixel changes and the round-off
+   * noise of fitBoard() itself, while still letting real rotation
+   * / fold events through (those change CELL by 5+px). The
+   * debounce below the function (150ms trailing) coalesces
+   * the URL bar's many events into one final recompute, so the
+   * deadband only ever has to deal with the *settled* state. */
+  if (document.body.classList.contains('touch-mode')
+      && Number.isFinite(CELL) && CELL >= cellMin && CELL <= 44
+      && Math.abs(nextCell - CELL) < 2) {
+    nextCell = CELL;
+  }
+  CELL = nextCell;
   canvas.width  = COLS * CELL;
   canvas.height = ROWS * CELL;
   /* If the next-piece preview canvas already exists, redraw it so
@@ -1086,12 +1250,27 @@ function fitBoard() {
   if (typeof drawNext === 'function') drawNext();
 }
 fitBoard();
-window.addEventListener('resize', fitBoard);
+/* v8 debounce: coalesce the burst of resize events that iOS
+ * fires during the URL-bar show/hide animation (one event per
+ * frame, ~16ms apart) into a single recompute 150ms after the
+ * burst ends. Without this, fitBoard() runs ~6 times per URL-bar
+ * animation, each time resizing the canvas by 1-3px — the user
+ * sees a brief "the board grew by 5px" flicker. With the
+ * debounce, fitBoard() runs once, at the end of the animation,
+ * with the *settled* visibleH. The deadband in fitBoard() is the
+ * second line of defense (in case a non-animation resize still
+ * arrives slightly off). */
+let _fitTimer = null;
+function fitBoardDebounced() {
+  if (_fitTimer) clearTimeout(_fitTimer);
+  _fitTimer = setTimeout(() => { _fitTimer = null; fitBoard(); }, 150);
+}
+window.addEventListener('resize', fitBoardDebounced);
 /* visualViewport fires on iOS when the URL bar shows/hides, which
  * is the most common cause of a half-cut board on phones. Listening
  * here keeps the cell size in sync with what the user actually sees. */
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', fitBoard);
+  window.visualViewport.addEventListener('resize', fitBoardDebounced);
 }
 
 /* ---------- Next-piece preview ----------
@@ -2129,10 +2308,13 @@ const SWIPE_VERTICAL = 64;   // px (must exceed SWIPE_DEADZONE). Bumped
                             // from 48 to 64 so a slow page-scroll
                             // drift on the board doesn't accidentally
                             // register as a "swipe up = hard drop".
-                            // The body is also locked (overflow:hidden
-                            // in touch mode) so there's no scroll
-                            // surface in the first place, but the
-                            // bigger threshold is belt-and-suspenders.
+                            // The body has `overscroll-behavior: none`
+                            // and the canvas has `touch-action: none`
+                            // in touch mode, so the page can't scroll
+                            // from a swipe on the board in the first
+                            // place — the bigger threshold is
+                            // belt-and-suspenders against jittery
+                            // finger tracking.
 const TAP_MAX_MOVE   = 10;   // px
 const SOFTDROP_MS    = 80;   // per-cell cadence for 2nd-finger hold
 
@@ -2303,30 +2485,47 @@ function unbindTouchInput(canvas) {
 }
 
 /* Toggle the body class so the CSS-driven FAB / layout kicks
- * in. Idempotent and safe to call multiple times. */
+ * in. Idempotent and safe to call multiple times.
+ *
+ * v7 fix: the early-detection <script> at the top of <body> adds
+ * the `touch-mode` class *before* this function ever runs, so
+ * the old `if (classList.contains('touch-mode')) return;` guard
+ * would short-circuit on the very first call — leaving
+ * `bindTouchInput()` and the FAB click handlers NEVER attached.
+ * That's why horizontal swipes and FAB taps silently no-op'd
+ * on real touch devices: the body looked touch-mode (CSS shows
+ * the FAB, hides the right column) but the JS was never wired.
+ *
+ * Fix: track handler setup with a separate flag (`_touchWired`)
+ * so the class state and the handler state are decoupled.
+ * The class can be added by either the early script or this
+ * function; the handlers get bound exactly once. */
+let _touchWired = false;
 function enableTouchMode() {
-  if (document.body.classList.contains('touch-mode')) return;
   document.body.classList.add('touch-mode');
-  if (_board) bindTouchInput(_board);
-  // Wire the FAB buttons to the same action shims.
-  $('fab-hard').addEventListener('click', _touchHardDrop);
-  $('fab-pause').addEventListener('click', () => {
-    if (gameOver) return;
-    if (!$('clear-modal').hidden) return;
-    paused = !paused;
-    $('status').textContent = paused ? 'paused' : 'playing';
-    // Sync the FAB icon so it reflects the current state.
-    $('fab-pause').textContent = paused ? '▶' : '⏸';
-  });
-  $('fab-restart').addEventListener('click', () => {
-    if (gameOver) {
+  if (!_touchWired) {
+    _touchWired = true;
+    if (_board) bindTouchInput(_board);
+    // Wire the FAB buttons to the same action shims.
+    $('fab-hard').addEventListener('click', _touchHardDrop);
+    $('fab-pause').addEventListener('click', () => {
+      if (gameOver) return;
+      if (!$('clear-modal').hidden) return;
+      paused = !paused;
+      $('status').textContent = paused ? 'paused' : 'playing';
+      // Sync the FAB icon so it reflects the current state.
+      $('fab-pause').textContent = paused ? '▶' : '⏸';
+    });
+    $('fab-restart').addEventListener('click', () => {
       // After gameOver, restart() flips it back to playing. OK.
-    }
-    restart();
-  });
-  // On first enable, fitBoard() may have already been called with
-  // a desktop CELL; ask it to recompute so the new layout (side
-  // cols collapsed) gets the right cell size.
+      restart();
+    });
+  }
+  // Always re-run fitBoard: the class change shifts the layout
+  // (side-cols collapse, FAB is fixed), so CELL needs to be
+  // recomputed even if the handlers were already wired (e.g.
+  // the early script added the class, we still need to size
+  // the board for the new layout).
   if (typeof fitBoard === 'function') fitBoard();
 }
 

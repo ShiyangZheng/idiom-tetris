@@ -11,7 +11,9 @@
  *
  * Storage
  * ───────
- *   SCORES (KV)  key:  "e:" + <iso-ts>:<random>  value: JSON {name, score, cleared, ip}
+ *   SCORES (KV)  key:  "e:" + <epoch-ms>:<random>  value: JSON {name, score, cleared, ts, when, ip}
+ *                                                            ts: epoch ms (sort key)
+ *                                                            when: ISO 8601 (client display)
  *                                       one entry per accepted submit
  *   RATE  (KV)   key:  "r:" + <ip>             value: JSON {count, windowStart}  (5/h)
  *   META (KV)    key:  "meta"                  value: JSON {count, lastTs, lastId}
@@ -79,7 +81,7 @@ async function healthz(env) {
 }
 
 async function getLeaderboard(env) {
-  const all = await readAllEntries(env);            // [{name, score, cleared, ts}, …]
+  const all = await readAllEntries(env);            // [{name, score, cleared, ts, when}, …]
   const sorted = all
     .sort((a, b) => b.score - a.score || a.ts - b.ts) // score desc, then earliest first
     .slice(0, 50)
@@ -88,7 +90,7 @@ async function getLeaderboard(env) {
       name: e.name,
       score: e.score,
       cleared: e.cleared,
-      when: e.ts,
+      when: e.when || null,                          // ISO 8601 string; null for legacy entries
     }));
   return { entries: sorted };
 }
@@ -129,8 +131,9 @@ async function submit(request, env, ctx) {
 
   /* -------- Write the new entry -------- */
   const ts = now;
+  const when = new Date(now).toISOString();
   const id = `e:${ts}:${Math.random().toString(36).slice(2, 8)}`;
-  const entry = { name, score, cleared, ts, ip };  // ip kept for moderation; never sent to clients
+  const entry = { name, score, cleared, ts, when, ip };  // ip kept for moderation; never sent to clients
   await env.SCORES.put(id, JSON.stringify(entry));
 
   /* -------- Recompute top 200 + rank of this entry --------

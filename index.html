@@ -1711,7 +1711,7 @@ loadPool().then(() => {
 
 /* ---------- Config ---------- */
 const SHARE_URL  = 'https://shiyangzheng.top/idiom-tetris/';
-const WORKER_URL = '';   // ← paste your Cloudflare Worker URL here
+const WORKER_URL = 'https://idiom-tetris-leaderboard.zhengshiyang97.workers.dev';
 const LEADERBOARD_LIMIT = 50;  // top-N shown in the modal
 const LEADERBOARD_LOCAL_KEY = 'idiom-tetris:leaderboard-local-mock';
 /* When WORKER_URL is empty, the game falls back to a localStorage-only
@@ -1812,10 +1812,14 @@ async function onShare() {
   status.textContent = 'Opening share sheet…';
   status.className   = 'share-status';
 
+  /* Share text — link only (no screenshot, per request). Personal score
+   * is the hook; the URL does the rest. Optimized for one line on
+   * Twitter / LinkedIn (counted characters) but also reads naturally
+   * as a WhatsApp / WeChat message. */
   const shareText =
-    `I just scored ${score.toLocaleString()} in Idiom Tetris ` +
-    `(cleared ${cleared} idioms)!\n` +
-    `Think you can beat me? Play here: ${SHARE_URL}`;
+    `I scored ${score.toLocaleString()} in Idiom Tetris ` +
+    `(${cleared} idioms cleared) — think you can beat me?\n` +
+    `Play free: ${SHARE_URL}`;
   const shareTitle = 'Idiom Tetris';
 
   try {

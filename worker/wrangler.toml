@@ -1,35 +1,47 @@
 # Cloudflare Worker config for the Idiom Tetris leaderboard.
 #
-# Setup (run once per Cloudflare account / project):
-#   1. npm install -g wrangler
-#   2. wrangler login
-#   3. wrangler kv:namespace create LEADERBOARD_SCORES
-#   4. wrangler kv:namespace create LEADERBOARD_RATE
-#   5. wrangler kv:namespace create LEADERBOARD_META
-#   6. Copy the three IDs printed in step 3-5 into the [[kv_namespaces]] blocks below.
-#   7. wrangler deploy
-#   8. Note the printed *.workers.dev URL (or attach a custom route) and paste it
-#      into WORKER_URL at the top of index.html.
+# DEPLOYMENT GOTCHA: wrangler 4.x auto-detects static assets in the project
+# root and bundles them. Running `wrangler deploy` from inside this repo
+# would bundle `../index.html`, `../build_pool.py`, the git objects, etc.
+# as static files served by the worker, shadowing the worker code at
+# /healthz, /leaderboard, /submit (worker code only runs when no static
+# file matches the path).
+#
+# To deploy cleanly, copy this dir to a stand-alone location first:
+#     mkdir -p /tmp/idiom-tetris-leaderboard
+#     cp worker/index.js worker/wrangler.toml /tmp/idiom-tetris-leaderboard/
+#     cd /tmp/idiom-tetris-leaderboard
+#     npx wrangler deploy
+# Or use any other directory that has ONLY these two files.
+#
+# Setup (run once per Cloudflare account):
+#   1. npx wrangler login
+#   2. npx wrangler kv namespace create LEADERBOARD_SCORES
+#   3. npx wrangler kv namespace create LEADERBOARD_RATE
+#   4. npx wrangler kv namespace create LEADERBOARD_META
+#   5. Paste the three IDs printed above into the [[kv_namespaces]] blocks below.
+#   6. npx wrangler deploy
+#   7. Copy the printed *.workers.dev URL into WORKER_URL at the top of
+#      the second <script> in index.html.
 name = "idiom-tetris-leaderboard"
 main = "index.js"
 compatibility_date = "2024-09-23"
 
-# The three namespaces are bound by name; the binding strings (LEADERBOARD_*
-# below) must match what index.js reads as `env.SCORES`, `env.RATE`, `env.META`.
-# If you only want one namespace, you can put all three prefixes in one
-# namespace and rename the bindings in index.js accordingly.
+# NO [assets] block — this is a pure API worker. The game UI is served
+# separately from shiyangzheng.top/idiom-tetris/. Without [assets], wrangler
+# 4.x will NOT auto-detect sibling files as static assets to bundle.
 
 [[kv_namespaces]]
 binding = "SCORES"
-id = "REPLACE_ME_KV_SCORES_ID"
-preview_id = "REPLACE_ME_KV_SCORES_PREVIEW_ID"
+id = "ebec16d8f2be4eb98fdf2edd401ab397"
+preview_id = "ebec16d8f2be4eb98fdf2edd401ab397"
 
 [[kv_namespaces]]
 binding = "RATE"
-id = "REPLACE_ME_KV_RATE_ID"
-preview_id = "REPLACE_ME_KV_RATE_PREVIEW_ID"
+id = "6b47626509b243e7aad741791a4b9891"
+preview_id = "6b47626509b243e7aad741791a4b9891"
 
 [[kv_namespaces]]
 binding = "META"
-id = "REPLACE_ME_KV_META_ID"
-preview_id = "REPLACE_ME_KV_META_PREVIEW_ID"
+id = "87ee835b6a174963a278a13e85bb4444"
+preview_id = "87ee835b6a174963a278a13e85bb4444"

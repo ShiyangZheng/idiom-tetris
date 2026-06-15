@@ -96,10 +96,11 @@ of gameplay that declarative study doesn't:
   builds the procedural memory that idiom use actually depends on.
 - **Feedback with semantic content.** When a v-d-n cluster clears,
   the toast doesn't just say "good job" — it surfaces the idiom
-  itself (`hold your horses`), its Chinese gloss (`耐心点`), and a
-  brief English example. The learner sees the productive act
-  (placing tiles) immediately rewarded with the linguistic form
-  they were trying to produce. The reward is the language.
+  itself (`hold your horses`) and its meaning in the learner's
+  preferred language (default: English; toggleable to 中文 via the
+  `Meaning` pill in the right HUD). The learner sees the productive
+  act (placing tiles) immediately rewarded with the linguistic
+  form they were trying to produce. The reward is the language.
 - **Spacing + retrieval practice at scale.** A 22-minute session
   produces ~80–100 piece placements, of which 5–15 are v-d-n
   clusters that clear. The learner never *decides* to drill the

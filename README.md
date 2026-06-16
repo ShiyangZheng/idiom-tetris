@@ -280,11 +280,11 @@ paper, or RA project would be:
 
 > *"Design and evaluate an adaptive piece-sequencing algorithm
 > for verb–determiner–noun idiom practice that integrates (a)
-> the BNC frequency gradient, (b) a player-performance model,
+> the COCA/BNC corpus frequency gradient, (b) a player-performance model,
 > and (c) spaced retrieval."*
 
 I'm at the University of Nottingham, School of English, and
-I'm funded by an ESRC studentship through 2028. Happy to
+I'm funded by an ESRC (Economic and Social Research Council) through 2028. Happy to
 co-author, share the pool, share the codebase, or co-supervise
 a small project.
 

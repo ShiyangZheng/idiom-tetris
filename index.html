@@ -3,7 +3,51 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Idiom Tetris — V-det-N</title>
+<meta name="theme-color" content="#1a1d2b">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Stack Verb–Determiner–Noun blocks to clear 611 English idioms. A vocab puzzle game by Shiyang Zheng.">
+<meta name="author" content="Shiyang Zheng">
+<meta name="application-name" content="Idiom Tetris">
+<meta name="apple-mobile-web-app-title" content="Idiom Tetris">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+
+<!-- Open Graph (WeChat, Facebook, LinkedIn, Discord, ...) -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://shiyangzheng.top/idiom-tetris/">
+<meta property="og:title" content="Idiom Tetris — V-Det-N 英语习语消消乐">
+<meta property="og:description" content="把动词、限定词、名词方块拼成 611 条地道英语习语。学术词汇学习 + 浏览器即玩 + 支持添加到主屏。">
+<meta property="og:image" content="https://shiyangzheng.top/idiom-tetris/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Idiom Tetris — 拼 V-Det-N 方块学英语习语">
+<meta property="og:site_name" content="Idiom Tetris">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+
+<!-- Twitter / X -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Idiom Tetris — V-Det-N 英语习语消消乐">
+<meta name="twitter:description" content="把动词、限定词、名词方块拼成 611 条地道英语习语。">
+<meta name="twitter:image" content="https://shiyangzheng.top/idiom-tetris/og-image.png">
+<meta name="twitter:image:alt" content="Idiom Tetris — V-Det-N 英语习语消消乐">
+
+<!-- WeChat 兼容 (微信内置浏览器不读 og:image，需要单独引导) -->
+<meta itemprop="name" content="Idiom Tetris — V-Det-N 英语习语消消乐">
+<meta itemprop="description" content="把动词、限定词、名词方块拼成 611 条地道英语习语。">
+<meta itemprop="image" content="https://shiyangzheng.top/idiom-tetris/og-image.png">
+
+<link rel="canonical" href="https://shiyangzheng.top/idiom-tetris/">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="image_src" href="og-image.png">
+
+<title>Idiom Tetris — V-Det-N 英语习语消消乐</title>
 <style>
   /* ============================================================
    *  CSS THEME
@@ -3099,6 +3143,29 @@ async function fetchWithTimeout(url, opts, ms) {
   }
 }
 async function safeJson(r) { try { return await r.json(); } catch { return null; } }
+</script>
+<script>
+/* Service Worker registration (PWA offline support).
+ * Registered last so it doesn't block the game from booting.
+ * Path is relative to the page, so this works whether the game is
+ * served from /idiom-tetris/ or a sub-path preview. */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => {
+        // Optional: log updates in DevTools
+        if (reg.waiting) console.info('[PWA] SW waiting to activate');
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'activated') console.info('[PWA] SW activated — offline ready');
+          });
+        });
+      })
+      .catch(err => console.warn('[PWA] SW registration failed:', err));
+  });
+}
 </script>
 </body>
 </html>

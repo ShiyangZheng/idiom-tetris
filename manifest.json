@@ -1,0 +1,45 @@
+{
+  "name": "Idiom Tetris — V-Det-N",
+  "short_name": "Idiom Tetris",
+  "description": "Stack Verb–Determiner–Noun blocks to clear 611 English idioms. A vocab puzzle game by Shiyang Zheng.",
+  "start_url": "/idiom-tetris/?utm_source=pwa",
+  "scope": "/idiom-tetris/",
+  "id": "/idiom-tetris/",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
+  "orientation": "portrait",
+  "background_color": "#1a1d2b",
+  "theme_color": "#1a1d2b",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["education", "games", "word"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Leaderboard",
+      "short_name": "Ranks",
+      "description": "See top scores for Idiom Tetris",
+      "url": "/idiom-tetris/?utm_source=pwa#leaderboard",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

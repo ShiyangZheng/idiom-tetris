@@ -41,6 +41,65 @@
 
 <link rel="canonical" href="https://shiyangzheng.top/idiom-tetris/">
 <link rel="manifest" href="manifest.json">
+<!--
+  The PWA manifest uses a *dynamic* `scope` and `start_url` derived from
+  the path the page is actually served from. We point the <link> tag at a
+  `data:application/json,...` URL (rather than `manifest.json` on disk)
+  so Chrome reads the inline manifest synchronously during the
+  installability check, and the scope always matches `location.pathname`.
+
+  Why this matters: Chrome's `beforeinstallprompt` event only fires when
+  the current page URL is *inside* the manifest's scope. Serving the
+  same `manifest.json` from two different mount points (e.g. the live
+  site at `/idiom-tetris/` and a local server at `/`) would always be
+  wrong for one of them. An inline manifest sidesteps the problem.
+-->
+<script>
+  (function () {
+    var path = location.pathname || '/';
+    /* If we're at /idiom-tetris/... the scope is /idiom-tetris/.
+       If we're at the server root (e.g. http://localhost:8765/) the
+       scope is /. Same code, both deployments, no rebuild. */
+    var segments = path.split('/').filter(Boolean);
+    var scope = '/' + (segments.length ? segments[0] + '/' : '');
+    var startUrl = scope + '?utm_source=pwa';
+    var manifest = {
+      name: "Idiom Tetris — V-Det-N",
+      short_name: "Idiom Tetris",
+      description: "Stack Verb–Determiner–Noun blocks to clear 611 English idioms. A vocab puzzle game by Shiyang Zheng.",
+      start_url: startUrl,
+      scope: scope,
+      id: scope,
+      display: "standalone",
+      display_override: ["standalone", "fullscreen"],
+      orientation: "portrait",
+      background_color: "#1a1d2b",
+      theme_color: "#1a1d2b",
+      lang: "en",
+      dir: "ltr",
+      categories: ["education", "games", "word"],
+      icons: [
+        { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+        { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+        { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
+      ],
+      shortcuts: [
+        {
+          name: "Leaderboard",
+          short_name: "Ranks",
+          description: "See top scores for Idiom Tetris",
+          url: startUrl + "#leaderboard",
+          icons: [{ src: "icon-192.png", sizes: "192x192", type: "image/png" }]
+        }
+      ]
+    };
+    var link = document.querySelector('link[rel=manifest]');
+    if (link) {
+      link.href = 'data:application/json;charset=utf-8,'
+                 + encodeURIComponent(JSON.stringify(manifest));
+    }
+  })();
+</script>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -874,6 +933,109 @@
      * (667px) gives 463px of board height ≈ 21px cells. */
     --header-reserved-px: 204px;
   }
+
+  /* ============================================================
+   *  SHARE BUTTON (left column, top)
+   *  Matches the original purple accent (--accent / --accent-strong).
+   *  Sized to look like a slot below the SCORE mini-stat, not a hero
+   *  element above NEXT.
+   * ============================================================ */
+  .share-slot {
+    /* Mini-stat cells are fixed-height, but the share button + status
+       are taller. Make this slot a flex column that auto-sizes and
+       still aligns with its neighbors. */
+    min-height: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .share-slot > .share-btn { margin: 0; }
+  .share-slot > .share-status { margin: 0; min-height: 12px; }
+
+  .share-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    margin: 0;
+    padding: 8px 6px;
+    border: 1px solid rgba(192, 132, 252, 0.40);
+    border-radius: 6px;
+    background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
+    color: #f8fafc;
+    font: 700 12px/1 -apple-system, "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.22);
+    transition: transform 0.08s ease, box-shadow 0.12s ease, filter 0.12s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .share-btn:hover  { filter: brightness(1.06); box-shadow: 0 4px 12px rgba(168, 85, 247, 0.32); }
+  .share-btn:active { transform: translateY(1px) scale(0.98); }
+  .share-btn:focus-visible { outline: 2px solid #f8fafc; outline-offset: 2px; }
+  .share-btn svg { display: block; width: 12px; height: 12px; }
+
+  /* Tiny status line right under the share button (auto-hides) */
+  .share-status {
+    font: 500 10.5px/1.2 -apple-system, "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+    color: var(--text-dim);
+    text-align: center;
+    min-height: 14px;
+    margin: 0;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .share-status.show { opacity: 1; }
+  .share-status.ok   { color: #6ee7b7; }
+  .share-status.dim  { color: var(--text-dim); }
+  .share-status.err  { color: #fca5a5; }
+
+  /* ============================================================
+   *  PWA INSTALL ICON (left sidebar, sibling of Share button)
+   *
+   *  Sits inside .action-row below .share-btn. Same shape as
+   *  Share so the eye reads them as a pair. Always visible.
+   *  Click fires the native install prompt; if the browser
+   *  can't install, the click is a silent no-op.
+   * ============================================================ */
+
+  /* Row that holds Share + Install — centered, even gap. */
+  .action-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  /* Install icon — circular, purple gradient, mirrors Share. */
+  .ib-install {
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    color: #ffffff;
+    background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.40);
+    -webkit-tap-highlight-color: transparent;
+    transition: filter 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
+    flex: 0 0 auto;
+  }
+  .ib-install:hover     { filter: brightness(1.08); box-shadow: 0 3px 10px rgba(168, 85, 247, 0.50); }
+  .ib-install:active    { transform: translateY(1px) scale(0.96); }
+  .ib-install:focus-visible { outline: 2px solid #f8fafc; outline-offset: 2px; }
+  .ib-install svg       { display: block; width: 18px; height: 18px; }
+
+  /* ============================================================
+   *  (no toast — install click is a single fire-and-forget action;
+   *  if the browser can't install, the click is a silent no-op)
+   * ============================================================ */
 </style>
 <!-- ============================================================
      EMBEDDED IDIOM POOL
@@ -931,6 +1093,18 @@
       }
     })();
   </script>
+
+  <!-- ============================================================
+       PWA INSTALL BANNER
+       Hidden by default. JS shows it on first visit unless the user
+       has dismissed it or already installed. Listens for the
+       native `beforeinstallprompt` event for a one-tap install on
+       Chrome/Edge/Android; on iOS Safari (no such event) it
+       surfaces a "How" button that toasts the manual steps.
+       ============================================================ -->
+  <!-- Install hint shown next to the install icon on first click
+       (no dismiss button — the icon stays put). -->
+
   <h1>🧩 Idiom Tetris</h1>
   <div class="subtitle">v-det-n · 3 falling words = 1 idiom cleared</div>
 
@@ -947,6 +1121,32 @@
       <div class="mini-stat">
         <div class="mini-label">Score</div>
         <div class="mini-val" id="stat-score">0</div>
+      </div>
+      <!-- Share + Install row. Both are circular icon buttons of the
+           same visual weight, sitting in a single flex row inside the
+           sidebar. The install icon is hidden once the user installs
+           (or when running as a standalone PWA). -->
+      <div class="mini-stat share-slot">
+        <div class="action-row">
+          <button id="share-btn" class="share-btn" type="button" aria-label="Share Idiom Tetris">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6"  cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <line x1="8.6"  y1="13.5" x2="15.4" y2="17.5"/>
+              <line x1="15.4" y1="6.5"  x2="8.6"  y2="10.5"/>
+            </svg>
+            Share
+          </button>
+          <button id="ib-install" class="ib-install" type="button" aria-label="Install Idiom Tetris on this device" title="Install on your device — works offline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12"/>
+              <path d="M7 10l5 5 5-5"/>
+              <path d="M5 21h14"/>
+            </svg>
+          </button>
+        </div>
+        <div id="share-status-side" class="share-status" aria-live="polite"></div>
       </div>
     </aside>
 
@@ -2902,47 +3102,36 @@ function onGameOver() {
  *                            share-sheet support
  */
 async function onShare() {
-  const status = $('share-status');
-  const btn    = $('btn-share');
+  const btn = $('btn-share');
   if (btn.disabled) return;
   btn.disabled = true;
-  status.textContent = 'Opening share sheet…';
-  status.className   = 'share-status';
-
-  /* Share text — link only (no screenshot, per request). Personal score
-   * is the hook; the URL does the rest. Optimized for one line on
-   * Twitter / LinkedIn (counted characters) but also reads naturally
-   * as a WhatsApp / WeChat message. */
-  const shareText =
-    `I scored ${score.toLocaleString()} in Idiom Tetris ` +
-    `(${cleared} idioms cleared) — think you can beat me?\n` +
-    `Play free: ${SHARE_URL}`;
-  const shareTitle = 'Idiom Tetris';
-
   try {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: shareTitle, text: shareText, url: SHARE_URL });
-        status.textContent = 'Shared!';
-        status.className   = 'share-status ok';
-      } catch (e) {
-        /* OS share sheet dismissable → user-cancel is not an error. */
-        if (e && (e.name === 'AbortError' || /cancel/i.test(e.message || ''))) {
-          status.textContent = 'Share canceled.';
-          status.className   = 'share-status';
-        } else {
-          throw e;
-        }
-      }
+    /* Delegate to the shared flow — same card image + same text
+       payload as the left-side Share button, just with the
+       "gameover" subtitle ("I scored X — Y idioms cleared!"). */
+    if (typeof window.shareWithCard === 'function') {
+      await window.shareWithCard('gameover', $('share-status'));
     } else {
-      /* No share-sheet support: copy text to clipboard. */
-      await copyToClipboard(shareText);
-      status.textContent = 'Copied to clipboard! Paste it into WeChat / X / LinkedIn…';
-      status.className   = 'share-status ok';
+      /* Last-resort fallback if the card script failed to load. */
+      const shareText =
+        `I scored ${score.toLocaleString()} in Idiom Tetris ` +
+        `(${cleared} idioms cleared) — think you can beat me?\n` +
+        `Play free: ${SHARE_URL}`;
+      if (navigator.share) {
+        await navigator.share({ title: 'Idiom Tetris', text: shareText, url: SHARE_URL });
+      } else {
+        await copyToClipboard(shareText);
+      }
     }
   } catch (e) {
-    status.textContent = 'Share failed: ' + (e && e.message ? e.message : e);
-    status.className   = 'share-status err';
+    const status = $('share-status');
+    if (e && (e.name === 'AbortError' || /cancel/i.test(e.message || ''))) {
+      status.textContent = 'Share canceled.';
+      status.className   = 'share-status';
+    } else {
+      status.textContent = 'Share failed: ' + (e && e.message ? e.message : e);
+      status.className   = 'share-status err';
+    }
   } finally {
     btn.disabled = false;
   }
@@ -3168,4 +3357,424 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 </body>
+<!-- ============================================================
+     SHARE + PWA INSTALL
+     Two non-game features layered on top of the original Idiom
+     Tetris gameplay. Keeps the original `current` / `spawnNext` /
+     `lock` / `checkIdiomClear` paths untouched.
+
+     Share button:
+       - Primary: navigator.share({title, text, url}) → system share
+         sheet (WeChat, X, IG, LinkedIn, Mail, Messages, ...).
+       - Fallback: navigator.clipboard.writeText(url). For very old
+         browsers without either, selects the URL text in a hidden
+         input so the user can manually copy.
+       - AbortError (user canceled the system share sheet) is shown
+         as a soft "Share canceled." — not a red error.
+
+     Install banner:
+       - Listens for `beforeinstallprompt` (Chrome/Edge/Android/PC
+         Edge/Chromium). On user click, calls prompt() and reacts
+         to the user's choice.
+       - iOS Safari does not fire `beforeinstallprompt`. The banner
+         still shows; tapping "Install" surfaces a toast with the
+         manual steps: Share → Add to Home Screen.
+       - Hides on `appinstalled` event so the banner does not
+         reappear once the app is installed.
+       - Dismissed state persists in localStorage so the banner
+         does not reappear on every visit after a single dismiss.
+     ============================================================ -->
+<!-- ============================================================
+     SHARE CARD RENDERER
+     Generates a 1200x630 PNG (Open Graph card aspect) used as
+     the `files` payload of navigator.share() for BOTH the
+     left-side Share button and the game-over modal Share button.
+     Both flows call window.shareWithCard(mode) which:
+       1. Renders the canvas card image (off-screen, ~150-300KB).
+       2. Copies the share text to the clipboard (safety net).
+       3. Calls navigator.share with files=[card] + text+url.
+       4. Falls back to text-only share, then to clipboard +
+          card-as-download, then to text-only clipboard.
+     Decoupled from any DOM so both share buttons can call it
+     without duplicating logic.
+     ============================================================ -->
+<script>
+(function () {
+  'use strict';
+
+  /* Side-share: copy text + download the card image silently,
+     without ever opening navigator.share() / the system share
+     sheet. The left Share button exists for users who want a
+     one-click post to WeChat / X / etc — but for an "I'm playing
+     this game" nudge, silently staging a clipboard payload and
+     a card PNG is the lower-friction flow. The user pastes
+     wherever they want. */
+  window.sideShare = async function (mode, statusEl) {
+    var payload = window.buildSharePayload(mode);
+    statusEl   = statusEl || document.getElementById('share-status-side');
+    function set(msg, kind) {
+      if (!statusEl) return;
+      statusEl.textContent = msg;
+      statusEl.className   = 'share-status show ' + (kind || 'dim');
+    }
+    function clear() {
+      if (!statusEl) return;
+      setTimeout(function () { statusEl.className = 'share-status'; }, 2600);
+    }
+
+    set('Preparing…', 'dim');
+
+    /* 1) Always copy the share text to the clipboard. */
+    var copied = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(payload.text);
+        copied = true;
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = payload.text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { copied = document.execCommand('copy'); } catch (e) {}
+        ta.remove();
+      }
+    } catch (e) { /* clipboard denied — non-fatal */ }
+
+    /* 2) Try to download the card PNG as well, so the user has
+          both pieces of share material ready in their downloads
+          folder. */
+    var cardSaved = false;
+    try {
+      var cardBlob = await window.renderShareCard(payload);
+      if (cardBlob) {
+        var durl = URL.createObjectURL(cardBlob);
+        var a = document.createElement('a');
+        a.href = durl;
+        a.download = 'idiom-tetris.png';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(durl); }, 8000);
+        cardSaved = true;
+      }
+    } catch (e) { /* card render failed — not fatal */ }
+
+    /* 3) One-line confirmation. Keep both possibilities covered
+          so the user always knows exactly what just happened. */
+    if (copied && cardSaved) {
+      set('Copied ✓ — card image saved to Downloads', 'ok');
+    } else if (copied) {
+      set('Copied to clipboard ✓', 'ok');
+    } else if (cardSaved) {
+      set('Card image saved to Downloads ✓', 'ok');
+    } else {
+      set('Couldn’t copy automatically — long-press to copy manually', 'err');
+    }
+    clear();
+  };
+
+  /* Build the share text + metadata for a given mode. */
+  window.buildSharePayload = function (mode) {
+    var s = (typeof score     !== 'undefined') ? score     : 0;
+    var c = (typeof cleared   !== 'undefined') ? cleared   : 0;
+    var url = (typeof SHARE_URL !== 'undefined')
+              ? SHARE_URL
+              : 'https://shiyangzheng.top/idiom-tetris/';
+    var title = 'Idiom Tetris';
+    var text;
+    if (mode === 'gameover') {
+      text = 'I just scored ' + (s|0).toLocaleString() +
+             ' in Idiom Tetris (' + c + ' idioms cleared)! ' +
+             'Think you can beat me? Play free: ' + url;
+    } else {
+      text = "I'm playing Idiom Tetris — can you beat my score? " +
+             'Play free: ' + url;
+    }
+    return { title: title, text: text, url: url, mode: mode,
+             score: s, cleared: c };
+  };
+
+  /* Render the share card to a 1200x630 canvas, return as PNG blob. */
+  window.renderShareCard = function (payload) {
+    var W = 1200, H = 630;
+    var canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    var c = canvas.getContext('2d');
+    var FONT = '-apple-system, "Helvetica Neue", "Segoe UI", system-ui, sans-serif';
+
+    function rr(x, y, w, h, r) {
+      if (c.roundRect) { c.beginPath(); c.roundRect(x, y, w, h, r); }
+      else {
+        c.beginPath();
+        c.moveTo(x + r, y);
+        c.arcTo(x + w, y,     x + w, y + h, r);
+        c.arcTo(x + w, y + h, x,     y + h, r);
+        c.arcTo(x,     y + h, x,     y,     r);
+        c.arcTo(x,     y,     x + w, y,     r);
+        c.closePath();
+      }
+    }
+
+    /* Background — same palette as the app shell. */
+    var bg = c.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0,    '#0a0e1a');
+    bg.addColorStop(0.55, '#16102a');
+    bg.addColorStop(1,    '#241a3d');
+    c.fillStyle = bg;
+    c.fillRect(0, 0, W, H);
+
+    /* Soft purple radial glow at the top to mirror the in-app feel. */
+    var glow = c.createRadialGradient(W/2, 0, 0, W/2, 0, 700);
+    glow.addColorStop(0,   'rgba(168, 85, 247, 0.28)');
+    glow.addColorStop(1,   'rgba(168, 85, 247, 0.00)');
+    c.fillStyle = glow;
+    c.fillRect(0, 0, W, H);
+
+    /* Subtle dot grid. */
+    c.fillStyle = 'rgba(192, 132, 252, 0.10)';
+    for (var gx = 36; gx < W; gx += 36) {
+      for (var gy = 36; gy < H; gy += 36) {
+        c.beginPath();
+        c.arc(gx, gy, 1.4, 0, Math.PI * 2);
+        c.fill();
+      }
+    }
+
+    /* Title. */
+    c.fillStyle = '#f8fafc';
+    c.font = '800 96px ' + FONT;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('🧩 Idiom Tetris', W/2, 185);
+
+    /* Subtitle — mode-specific. */
+    var subtitle;
+    if (payload.mode === 'gameover') {
+      subtitle = 'I scored ' + (payload.score|0).toLocaleString() +
+                 ' — ' + payload.cleared + ' idioms cleared!';
+    } else {
+      subtitle = "I'm playing right now — can you beat my score?";
+    }
+    c.fillStyle = '#c084fc';
+    c.font = '600 38px ' + FONT;
+    c.fillText(subtitle, W/2, 280);
+
+    /* Three colored blocks (V / det / N — the three block types). */
+    var blockY     = 380;
+    var blockSize  = 92;
+    var blockGap   = 28;
+    var labels = ['V', 'det', 'N'];
+    var bgs    = ['#f472b6', '#22d3ee', '#facc15'];
+    var bdrs   = ['#be185d', '#0e7490', '#a16207'];
+    var totalW = blockSize * 3 + blockGap * 2;
+    var startX = (W - totalW) / 2;
+    for (var i = 0; i < 3; i++) {
+      var bx = startX + i * (blockSize + blockGap);
+      var by = blockY;
+
+      /* Drop shadow. */
+      c.save();
+      c.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      rr(bx + 4, by + 12, blockSize, blockSize, 16);
+      c.fill();
+      c.restore();
+
+      /* Block face. */
+      c.fillStyle = bgs[i];
+      rr(bx, by, blockSize, blockSize, 16);
+      c.fill();
+
+      c.strokeStyle = bdrs[i];
+      c.lineWidth = 3;
+      c.stroke();
+
+      /* Label. */
+      c.fillStyle = '#0a0e1a';
+      c.font = '800 ' + (labels[i].length > 1 ? 32 : 44) + 'px ' + FONT;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(labels[i], bx + blockSize/2, by + blockSize/2);
+    }
+
+    /* URL footer. */
+    c.fillStyle = 'rgba(248, 250, 252, 0.75)';
+    c.font = '500 28px ' + FONT;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(payload.url, W/2, 555);
+
+    return new Promise(function (resolve, reject) {
+      try {
+        canvas.toBlob(function (blob) {
+          if (blob) resolve(blob);
+          else reject(new Error('toBlob returned null'));
+        }, 'image/png');
+      } catch (e) { reject(e); }
+    });
+  };
+
+  /* Run the full share flow for a given mode. statusEl is the small
+     status line under the share button. Falls back gracefully if
+     any layer is missing. */
+  window.shareWithCard = async function (mode, statusEl) {
+    var payload = window.buildSharePayload(mode);
+    statusEl   = statusEl || document.getElementById('share-status');
+    function set(msg, kind) {
+      if (!statusEl) return;
+      statusEl.textContent = msg;
+      statusEl.className   = 'share-status show ' + (kind || 'dim');
+    }
+    function clear() {
+      if (!statusEl) return;
+      setTimeout(function () { statusEl.className = 'share-status'; }, 2400);
+    }
+
+    /* 1) Render the card image. */
+    set('Generating card…', 'dim');
+    var cardBlob = null;
+    try { cardBlob = await window.renderShareCard(payload); }
+    catch (e) { console.warn('Card render failed:', e); }
+
+    /* 2) Copy text to clipboard as a safety net — done before
+          share so the user has it no matter what happens. */
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(payload.text);
+      }
+    } catch (e) { /* clipboard may be denied — not fatal. */ }
+
+    /* 3) Try system share with card file. */
+    if (navigator.share) {
+      try {
+        if (cardBlob) {
+          var file = new File([cardBlob], 'idiom-tetris.png', { type: 'image/png' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              title: payload.title,
+              text:  payload.text,
+              url:   payload.url,
+              files: [file]
+            });
+            set('Shared with card ✓', 'ok');
+            clear();
+            return 'card';
+          }
+        }
+        /* Card not supported — text-only share (OS picks the OG card). */
+        await navigator.share({
+          title: payload.title,
+          text:  payload.text,
+          url:   payload.url
+        });
+        set('Shared ✓', 'ok');
+        clear();
+        return 'text';
+      } catch (e) {
+        if (e && (e.name === 'AbortError' || e.code === 20)) {
+          set('Share canceled.', 'dim');
+          clear();
+          return 'cancel';
+        }
+        /* Real error — fall through to clipboard. */
+      }
+    }
+
+    /* 4) No system share — clipboard is already done. Offer the
+          card as a download so the user can still send the image. */
+    if (cardBlob) {
+      try {
+        var durl = URL.createObjectURL(cardBlob);
+        var a = document.createElement('a');
+        a.href = durl;
+        a.download = 'idiom-tetris.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(durl); }, 8000);
+        set('Card downloaded ✓ — text copied too.', 'ok');
+        clear();
+        return 'download';
+      } catch (e) { /* fall through */ }
+    }
+    set('Text copied to clipboard ✓', 'ok');
+    clear();
+    return 'clipboard';
+  };
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+
+  /* ------------------------- Share button ------------------------- */
+  var shareBtn   = document.getElementById('share-btn');
+  var shareStat  = document.getElementById('share-status-side');
+  var shareTimer = null;
+
+  function setShareStatus(msg, kind /* 'ok'|'dim'|'err' */) {
+    if (!shareStat) return;
+    shareStat.textContent = msg;
+    shareStat.className = 'share-status show ' + (kind || 'dim');
+    if (shareTimer) clearTimeout(shareTimer);
+    shareTimer = setTimeout(function () {
+      shareStat.className = 'share-status';
+    }, 2400);
+  }
+
+  async function onShareClick() {
+    /* Side-share flow — silent copy + card download, no system
+       share sheet. The user pastes wherever they want. */
+    if (typeof window.sideShare === 'function') {
+      try { await window.sideShare('play', shareStat); }
+      catch (e) {
+        setShareStatus('Share failed: ' + (e && e.message ? e.message : e), 'err');
+      }
+      return;
+    }
+    /* Last-resort fallback if the side-share script failed to load. */
+    var url = (typeof SHARE_URL !== 'undefined') ? SHARE_URL : location.href;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+        setShareStatus('Link copied ✓', 'ok');
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  if (shareBtn) {
+    shareBtn.addEventListener('click', onShareClick);
+  }
+
+  /* ------------------------ PWA install icon --------------------- */
+  /* The install icon lives in the left sidebar below the Share
+     button. It is always visible. Clicking it fires the browser's
+     native install prompt; if the browser doesn't support that
+     (iOS Safari, Firefox), the click is a no-op. No toast, no
+     teaching copy, no localStorage, no hidden state. */
+  var ibInstall = document.getElementById('ib-install');
+  var deferredPrompt = null;
+
+  /* Capture the prompt the browser fires on first visit so we can
+     call .prompt() later when the user actually clicks Install. */
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+  });
+
+  if (ibInstall) {
+    ibInstall.addEventListener('click', function () {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt = null;   /* can't reuse — browser must re-fire */
+      }
+      /* Otherwise: nothing. The button stays. */
+    });
+  }
+})();
+</script>
 </html>

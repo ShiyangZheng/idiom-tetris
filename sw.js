@@ -35,6 +35,8 @@ const PRECACHE_URLS = [
   './icon-512.png',
   './apple-touch-icon.png',
   './og-image.png',
+  './audio/underground.ogg',
+  './audio/pop1.ogg',
 ];
 
 self.addEventListener('install', (event) => {

@@ -1009,19 +1009,22 @@
     width: 100%;
   }
 
-  /* Install icon — circular, purple gradient, mirrors Share. */
+  /* Install icon — mirrors Share's square purple button so the
+   *  three sidebar actions (Share / Install / Music) read as a
+   *  consistent set. Same gradient, same padding, same font, just
+   *  no label glyph (icon-only). */
   .ib-install {
     border: none;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    padding: 0;
+    border-radius: 10px;
+    padding: 9px 14px;
     color: #ffffff;
     background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
+    font: 600 14px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     box-shadow: 0 2px 8px rgba(168, 85, 247, 0.40);
     -webkit-tap-highlight-color: transparent;
     transition: filter 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
@@ -1030,12 +1033,58 @@
   .ib-install:hover     { filter: brightness(1.08); box-shadow: 0 3px 10px rgba(168, 85, 247, 0.50); }
   .ib-install:active    { transform: translateY(1px) scale(0.96); }
   .ib-install:focus-visible { outline: 2px solid #f8fafc; outline-offset: 2px; }
-  .ib-install svg       { display: block; width: 18px; height: 18px; }
+  .ib-install svg       { display: block; width: 16px; height: 16px; }
+  /* The .hidden utility is the ONLY way the install button is
+   *  removed from the layout (see CONTRACT in the install script
+   *  below). The button does NOT toggle on click — only on the
+   *  real install signals (appinstalled, standalone, flag). */
+  .ib-install.hidden    { display: none !important; }
 
   /* ============================================================
    *  (no toast — install click is a single fire-and-forget action;
    *  if the browser can't install, the click is a silent no-op)
    * ============================================================ */
+
+  /* ============================================================
+   *  MUSIC TOGGLE BUTTON (left sidebar, third in the action row).
+   *  Same visual language as Install: square purple button, icon
+   *  + small label. Shares the gradient so the three buttons read
+   *  as a set. Hidden until the audio file is loadable (or
+   *  definitely failed) so we never dangle a button that can't
+   *  actually play. The .off / .err states express "available but
+   *  muted" / "broken" without removing the affordance entirely.
+   * ============================================================ */
+  .music-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 9px 14px;
+    color: #ffffff;
+    background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
+    font: 600 14px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+    cursor: pointer;
+    display: none;            /* shown by JS once the audio is loadable */
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.40);
+    -webkit-tap-highlight-color: transparent;
+    transition: filter 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
+    flex: 0 0 auto;
+  }
+  .music-btn.ready   { display: inline-flex; }
+  .music-btn:hover   { filter: brightness(1.08); box-shadow: 0 3px 10px rgba(168, 85, 247, 0.50); }
+  .music-btn:active  { transform: translateY(1px) scale(0.96); }
+  .music-btn:focus-visible { outline: 2px solid #f8fafc; outline-offset: 2px; }
+  .music-btn svg     { display: block; width: 16px; height: 16px; }
+  /* Muted state: still purple, but dimmed so the off-state reads
+   *  as "available, paused" instead of "broken". */
+  .music-btn.off     { opacity: 0.55; }
+  /* Error state: audio failed to load (e.g. browser can't decode
+   *  OGG). Show the button at low opacity + greyscale so the user
+   *  sees "this is here but doesn't work" instead of a silent
+   *  absence. */
+  .music-btn.err     { opacity: 0.30; filter: grayscale(0.6); }
+  .music-btn.err:hover { opacity: 0.55; }
 </style>
 <!-- ============================================================
      EMBEDDED IDIOM POOL
@@ -1105,6 +1154,19 @@
   <!-- Install hint shown next to the install icon on first click
        (no dismiss button — the icon stays put). -->
 
+  <!-- Background music (CC0 chiptune). The element is in the DOM
+       up front so iOS Safari can keep a handle on the audio buffer
+       even before the user clicks the Music button. Volume is
+       fixed at 0.35 — the loop was mixed a little hot and at 1.0
+       it crowds the game sounds. -->
+  <audio id="bgm" loop preload="auto" playsinline
+         src="audio/underground.ogg" aria-hidden="true"></audio>
+  <!-- One-shot SFX bus. Cleared-idiom "pop". 12KB, tied to a
+       user-visible game event (the clear), so the autoplay-policy
+       user-gesture check is satisfied by the time it fires. -->
+  <audio id="sfx-clear" preload="auto"
+         src="audio/pop1.ogg" aria-hidden="true"></audio>
+
   <h1>🧩 Idiom Tetris</h1>
   <div class="subtitle">v-det-n · 3 falling words = 1 idiom cleared</div>
 
@@ -1122,10 +1184,13 @@
         <div class="mini-label">Score</div>
         <div class="mini-val" id="stat-score">0</div>
       </div>
-      <!-- Share + Install row. Both are circular icon buttons of the
-           same visual weight, sitting in a single flex row inside the
-           sidebar. The install icon is hidden once the user installs
-           (or when running as a standalone PWA). -->
+      <!-- Share + Install + Music row. Three square purple buttons
+           sharing the same gradient — a consistent set. The install
+           button stays visible until the user has actually installed
+           the app (see CONTRACT in the install script). The music
+           button is hidden until the audio file has actually loaded
+           (or definitely failed) so we never dangle an unplayable
+           affordance. -->
       <div class="mini-stat share-slot">
         <div class="action-row">
           <button id="share-btn" class="share-btn" type="button" aria-label="Share Idiom Tetris">
@@ -1139,11 +1204,25 @@
             Share
           </button>
           <button id="ib-install" class="ib-install" type="button" aria-label="Install Idiom Tetris on this device" title="Install on your device — works offline">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 3v12"/>
               <path d="M7 10l5 5 5-5"/>
               <path d="M5 21h14"/>
             </svg>
+            Install
+          </button>
+          <button id="music-btn" class="music-btn off" type="button" aria-label="Toggle background music" title="Background music (CC0)">
+            <svg id="music-icon-on"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M11 5L6 9H2v6h4l5 4z"/>
+              <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+              <path d="M18.5 5.5a9 9 0 0 1 0 13"/>
+            </svg>
+            <svg id="music-icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none">
+              <path d="M11 5L6 9H2v6h4l5 4z"/>
+              <line x1="23" y1="9"  x2="17" y2="15"/>
+              <line x1="17" y1="9"  x2="23" y2="15"/>
+            </svg>
+            <span id="music-label">Music</span>
           </button>
         </div>
         <div id="share-status-side" class="share-status" aria-live="polite"></div>
@@ -2050,6 +2129,12 @@ function checkIdiomClear(px, py) {
 function clearIdiomAt(cx, cy, positions, key) {
   /* positions: array of 3 [x,y] coordinates of the cells forming the idiom. */
   const entry = POOL.lookup[key];
+  /* Play the clear SFX. Wrapped in typeof-check so the game still
+   * runs if the sfx bus hasn't loaded yet (very rare — pop1.ogg is
+   * 12KB and `preload="auto"` kicks off the fetch on parse). */
+  if (typeof window.playSfx === 'function') {
+    window.playSfx('clear');
+  }
   showClearModal(entry);
 
   let ticks = 0;
@@ -3751,30 +3836,230 @@ if ('serviceWorker' in navigator) {
   }
 
   /* ------------------------ PWA install icon --------------------- */
-  /* The install icon lives in the left sidebar below the Share
-     button. It is always visible. Clicking it fires the browser's
-     native install prompt; if the browser doesn't support that
-     (iOS Safari, Firefox), the click is a no-op. No toast, no
-     teaching copy, no localStorage, no hidden state. */
+  /* CONTRACT — DO NOT REGRESS:
+   *
+   *   The install button MUST stay visible in the left sidebar
+   *   until the app is actually installed. The user clicking the
+   *   button, the browser dialog being shown, or the user
+   *   dismissing that dialog are NOT valid reasons to hide the
+   *   button — only a real install is.
+   *
+   *   Signals that ARE valid to hide on (combine them defensively):
+   *     1. The page is opened in standalone PWA mode
+   *        (matchMedia '(display-mode: standalone)' or
+   *        navigator.standalone on iOS)
+   *     2. The browser fires `appinstalled` (post-install)
+   *     3. We previously recorded "installed" in localStorage
+   *        — backup signal in case the browser forgot to fire
+   *        `appinstalled` (it sometimes doesn't, e.g. when the
+   *        user installed via the address-bar install chip on
+   *        Chrome desktop)
+   *
+   *   Signals that are NOT valid to hide on:
+   *     - User clicking the install button
+   *     - Browser showing the install dialog
+   *     - User choosing "Cancel" / "Not now" in the dialog
+   *     - Network error, transient state, etc.
+   *
+   *   If a future refactor wants to "clean up" the click handler
+   *   by hiding the button after userChoice, that's a regression.
+   */
   var ibInstall = document.getElementById('ib-install');
   var deferredPrompt = null;
 
-  /* Capture the prompt the browser fires on first visit so we can
-     call .prompt() later when the user actually clicks Install. */
+  /* localStorage backup. We WRITE here when we believe the app is
+   * installed (appinstalled fired, or display-mode says
+   * standalone). We READ here at startup to short-circuit the
+   * "show" decision. */
+  var INSTALLED_KEY = 'idiom-tetris.install.completed.v1';
+  function recordInstalled () {
+    try { localStorage.setItem(INSTALLED_KEY, '1'); } catch (e) {}
+  }
+  function hasInstalledFlag () {
+    try { return localStorage.getItem(INSTALLED_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  /* The browser fires `beforeinstallprompt` once per page load
+   * when the install criteria are met. We capture it so we can
+   * fire it later from our own click handler. */
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault();
     deferredPrompt = e;
+  });
+
+  /* Display-mode probe: returns true if the page is currently
+   * being rendered inside the installed PWA (no chrome, app icon
+   * on the home screen / Start menu, etc). */
+  function isStandalone () {
+    return !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || window.navigator.standalone === true;
+  }
+
+  /* The ONLY function allowed to hide the install button. Called
+   * from exactly three places: the standalone probe at startup,
+   * the `appinstalled` event, and the localStorage fallback
+   * (one-shot, then cleared). Notice there is NO call site on
+   * the click handler or on userChoice — that's the contract. */
+  function hideInstallBtn () {
+    if (!ibInstall) return;
+    ibInstall.classList.add('hidden');
+    ibInstall.setAttribute('aria-hidden', 'true');
+  }
+
+  /* 1) Standalone probe at load. */
+  if (isStandalone()) {
+    hideInstallBtn();
+    recordInstalled();
+  }
+  /* 2) localStorage probe at load — handles the "user installed
+   *    via the address-bar chip and `appinstalled` never fired"
+   *    case on a subsequent visit. */
+  if (hasInstalledFlag() && !isStandalone()) {
+    /* Edge case: localStorage says installed, but we're not in
+     * standalone mode right now (user is opening the URL in a
+     * regular browser tab). Still hide the button — they're
+     * installed, we trust the flag. */
+    hideInstallBtn();
+  }
+  /* 3) `appinstalled` event — the canonical signal. */
+  window.addEventListener('appinstalled', function () {
+    recordInstalled();
+    hideInstallBtn();
   });
 
   if (ibInstall) {
     ibInstall.addEventListener('click', function () {
       if (deferredPrompt) {
         deferredPrompt.prompt();
-        deferredPrompt = null;   /* can't reuse — browser must re-fire */
+        /* IMPORTANT: do NOT null out deferredPrompt here. Some
+         * browsers (notably Chrome desktop) keep the prompt
+         * object valid for one more call, and the spec only
+         * forbids reuse AFTER the user has answered. Nulling
+         * it early meant a second click during the dialog
+         * open was a dead button. We only null it once we know
+         * the user has decided. */
+        deferredPrompt.userChoice.then(function (choice) {
+          deferredPrompt = null;   /* spent — wait for browser to re-fire */
+          /* NOTE: we deliberately do NOT hide the button here.
+           * See the CONTRACT comment above. If the user clicked
+           * "Install" and `appinstalled` fired, the appinstalled
+           * handler above already hid it. If they cancelled, the
+           * button stays — they can try again. */
+        });
       }
-      /* Otherwise: nothing. The button stays. */
+      /* Otherwise: silent no-op. Button stays visible. */
     });
   }
+
+  /* ============================================================
+   *  BACKGROUND MUSIC TOGGLE
+   *  Source: audio/underground.ogg (CC0 chiptune by MatiasVME,
+   *  OpenGameArt "Chiptune Loops" collection, 2018).
+   *  Design:
+   *    - Default state is OFF. Browsers block autoplay with sound
+   *      until a user gesture occurs, so audio.paused = true at
+   *      load. The Music button is rendered (in its dimmed "off"
+   *      state) so the user knows the affordance exists.
+   *    - First click: try to play(). If the browser refuses (e.g.
+   *      user hasn't interacted with the page yet on some mobile
+   *      WebViews), swallow the error — the click itself counts as
+   *      the user gesture, so the next click will succeed.
+   *    - Second click: pause() and persist the "off" state to
+   *      localStorage so the user's preference survives reloads.
+   *    - Hide the button entirely if the audio file 404s or the
+   *      browser can't decode OGG (e.g. ancient WebKit), so we
+   *      don't dangle a button that does nothing.
+   *    - Pause when the tab is hidden (Page Visibility API) so we
+   *      don't keep the audio context alive in the background.
+   * ============================================================ */
+  (function () {
+    'use strict';
+    var audio   = document.getElementById('bgm');
+    var btn     = document.getElementById('music-btn');
+    var iconOn  = document.getElementById('music-icon-on');
+    var iconOff = document.getElementById('music-icon-off');
+    if (!audio || !btn) return;
+
+    /* Volume was tuned by ear: 0.35 sits under the game without
+     * disappearing. The loop is 50.85s, mixed a little hot, and
+     * at 1.0 it fights for attention with the click feedback. */
+    audio.volume = 0.35;
+
+    /* RACE-CONDITION GOTCHA: with preload="auto" and a small local
+     * file, the browser can finish downloading the audio and fire
+     * `loadeddata` BEFORE this script runs and binds the listener.
+     * In that case the event is dropped and the button stays hidden
+     * forever (the 2.5s timer sees readyState>=2 so it does NOT
+     * hide the button, but it also doesn't show it — the .ready
+     * class is never added). Fix: check readyState synchronously
+     * before binding, and if it's already HAVE_CURRENT_DATA, show
+     * the button immediately. */
+    function showBtn () { btn.classList.add('ready'); }
+    function markErr () { btn.classList.add('err'); btn.title = 'Audio failed to load'; }
+    if (audio.readyState >= 2) {
+      showBtn();
+    } else {
+      audio.addEventListener('loadeddata', showBtn, { once: true });
+      audio.addEventListener('error', markErr, { once: true });
+      /* If neither event fires within 2.5s, assume the file is
+       * missing or the browser can't decode OGG. */
+      setTimeout(function () {
+        if (audio.readyState < 2) markErr();
+      }, 2500);
+    }
+
+    function setOn (on) {
+      iconOn.style.display  = on ? 'block' : 'none';
+      iconOff.style.display = on ? 'none'  : 'block';
+      btn.classList.toggle('off', !on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    setOn(false);
+
+    btn.addEventListener('click', function () {
+      if (audio.paused) {
+        var p = audio.play();
+        if (p && typeof p.then === 'function') {
+          p.then(function () { setOn(true); })
+           .catch(function () { setOn(false); /* browser refused */ });
+        } else {
+          setOn(true);
+        }
+      } else {
+        audio.pause();
+        setOn(false);
+      }
+    });
+
+    /* Pause when the tab is hidden so we don't keep the audio
+     * context alive (and drain the user's battery) when they're
+     * in another tab or screen-locked. */
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden && !audio.paused) {
+        audio.pause();
+        setOn(false);
+      }
+    });
+  })();
+
+  /* ============================================================
+   *  SFX BUS — one-shot "pop" on idiom clear.
+   *  Exposed on window so the game loop can call playSfx('clear')
+   *  from inside the lock/clear handler. We keep the SFX object
+   *  separate from the BGM so playing a clear doesn't restart the
+   *  background track. Catches autoplay-policy rejections (the
+   *  click that triggered the game is a user gesture so this is
+   *  rare, but Firefox and some WebViews have stricter rules).
+   * ============================================================ */
+  window.playSfx = function (name) {
+    var el = document.getElementById('sfx-' + name);
+    if (!el) return;
+    try {
+      el.currentTime = 0;
+      var p = el.play();
+      if (p && typeof p.catch === 'function') p.catch(function () {});
+    } catch (e) { /* swallow */ }
+  };
 })();
 </script>
 </html>

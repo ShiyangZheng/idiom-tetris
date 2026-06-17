@@ -953,28 +953,27 @@
   .share-slot > .share-status { margin: 0; min-height: 12px; }
 
   .share-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    width: 100%;
+    width: 32px;
+    height: 32px;
     margin: 0;
-    padding: 8px 6px;
-    border: 1px solid rgba(192, 132, 252, 0.40);
-    border-radius: 6px;
-    background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
-    color: #f8fafc;
-    font: 700 12px/1 -apple-system, "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
-    letter-spacing: 0.02em;
+    padding: 0;
+    border: 1px solid rgba(148, 163, 184, 0.20);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #94a3b8;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.22);
-    transition: transform 0.08s ease, box-shadow 0.12s ease, filter 0.12s ease;
+    box-shadow: none;
+    transition: all 0.15s ease;
     -webkit-tap-highlight-color: transparent;
+    flex: 0 0 auto;
   }
-  .share-btn:hover  { filter: brightness(1.06); box-shadow: 0 4px 12px rgba(168, 85, 247, 0.32); }
-  .share-btn:active { transform: translateY(1px) scale(0.98); }
-  .share-btn:focus-visible { outline: 2px solid #f8fafc; outline-offset: 2px; }
-  .share-btn svg { display: block; width: 12px; height: 12px; }
+  .share-btn:hover  { background: rgba(255, 255, 255, 0.10); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.35); }
+  .share-btn:active { transform: scale(0.92); }
+  .share-btn:focus-visible { outline: 2px solid rgba(168, 85, 247, 0.5); outline-offset: 2px; }
+  .share-btn svg { display: block; width: 15px; height: 15px; }
 
   /* Tiny status line right under the share button (auto-hides) */
   .share-status {
@@ -1005,7 +1004,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     width: 100%;
   }
 
@@ -1014,26 +1013,26 @@
    *  consistent set. Same gradient, same padding, same font, just
    *  no label glyph (icon-only). */
   .ib-install {
-    border: none;
-    border-radius: 10px;
-    padding: 9px 14px;
-    color: #ffffff;
-    background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
-    font: 600 14px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+    border: 1px solid rgba(148, 163, 184, 0.20);
+    border-radius: 8px;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.06);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.40);
+    box-shadow: none;
     -webkit-tap-highlight-color: transparent;
-    transition: filter 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
+    transition: all 0.15s ease;
     flex: 0 0 auto;
   }
-  .ib-install:hover     { filter: brightness(1.08); box-shadow: 0 3px 10px rgba(168, 85, 247, 0.50); }
-  .ib-install:active    { transform: translateY(1px) scale(0.96); }
-  .ib-install:focus-visible { outline: 2px solid #f8fafc; outline-offset: 2px; }
-  .ib-install svg       { display: block; width: 16px; height: 16px; }
+  .ib-install:hover     { background: rgba(255, 255, 255, 0.10); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.35); }
+  .ib-install:active    { transform: scale(0.92); }
+  .ib-install:focus-visible { outline: 2px solid rgba(168, 85, 247, 0.5); outline-offset: 2px; }
+  .ib-install svg       { display: block; width: 15px; height: 15px; }
   /* The .hidden utility is the ONLY way the install button is
    *  removed from the layout (see CONTRACT in the install script
    *  below). The button does NOT toggle on click — only on the
@@ -1055,27 +1054,27 @@
    *  muted" / "broken" without removing the affordance entirely.
    * ============================================================ */
   .music-btn {
-    border: none;
-    border-radius: 10px;
-    padding: 9px 14px;
-    color: #ffffff;
-    background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
-    font: 600 14px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+    border: 1px solid rgba(148, 163, 184, 0.20);
+    border-radius: 8px;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.06);
     cursor: pointer;
     display: none;            /* shown by JS once the audio is loadable */
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.40);
+    box-shadow: none;
     -webkit-tap-highlight-color: transparent;
-    transition: filter 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
+    transition: all 0.15s ease;
     flex: 0 0 auto;
   }
   .music-btn.ready   { display: inline-flex; }
-  .music-btn:hover   { filter: brightness(1.08); box-shadow: 0 3px 10px rgba(168, 85, 247, 0.50); }
-  .music-btn:active  { transform: translateY(1px) scale(0.96); }
-  .music-btn:focus-visible { outline: 2px solid #f8fafc; outline-offset: 2px; }
-  .music-btn svg     { display: block; width: 16px; height: 16px; }
+  .music-btn:hover   { background: rgba(255, 255, 255, 0.10); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.35); }
+  .music-btn:active  { transform: scale(0.92); }
+  .music-btn:focus-visible { outline: 2px solid rgba(168, 85, 247, 0.5); outline-offset: 2px; }
+  .music-btn svg     { display: block; width: 15px; height: 15px; }
   /* Muted state: still purple, but dimmed so the off-state reads
    *  as "available, paused" instead of "broken". */
   .music-btn.off     { opacity: 0.55; }
@@ -1201,7 +1200,6 @@
               <line x1="8.6"  y1="13.5" x2="15.4" y2="17.5"/>
               <line x1="15.4" y1="6.5"  x2="8.6"  y2="10.5"/>
             </svg>
-            Share
           </button>
           <button id="ib-install" class="ib-install" type="button" aria-label="Install Idiom Tetris on this device" title="Install on your device — works offline">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1209,7 +1207,6 @@
               <path d="M7 10l5 5 5-5"/>
               <path d="M5 21h14"/>
             </svg>
-            Install
           </button>
           <button id="music-btn" class="music-btn off" type="button" aria-label="Toggle background music" title="Background music (CC0)">
             <svg id="music-icon-on"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1222,7 +1219,6 @@
               <line x1="23" y1="9"  x2="17" y2="15"/>
               <line x1="17" y1="9"  x2="23" y2="15"/>
             </svg>
-            <span id="music-label">Music</span>
           </button>
         </div>
         <div id="share-status-side" class="share-status" aria-live="polite"></div>

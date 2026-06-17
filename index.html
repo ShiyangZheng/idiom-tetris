@@ -129,16 +129,8 @@
     --text-dim: #9aa0b4;  /* secondary text (hints, sub-labels) */
     --accent: #38bdf8;    /* highlight color (badges) — cool teal */
     --clear: #10b981;     /* success color (cleared counter) */
-    /* Vertical pixels that the title + subtitle + side HUD consume
-     * in each layout mode. fitBoard() subtracts this from the visible
-     * viewport height to compute the canvas cell size
-     * (availH = visibleH - HEADER_PX; FAB_ROW_PX is 0 in v7 because
-     * the FAB is `position: fixed` and doesn't participate in
-     * layout). The desktop value (80) is just the title+subtitle
-     * chrome; the touch value (204) also accounts for the side HUD
-     * chip row that stacks above the board. JS reads this via
-     * getComputedStyle(body).getPropertyValue(...). */
-    --header-reserved-px: 80px;
+    /* Vertical pixels that the title consumes in each layout mode.
+    --header-reserved-px: 50px;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -163,7 +155,6 @@
     text-transform: uppercase;
     color: var(--text);
   }
-  .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 12px; }
   .layout {
     display: flex;
     gap: 20px;
@@ -192,6 +183,8 @@
     flex: 0 0 80px;
     align-items: center;
     padding-top: 8px;
+    position: relative;
+    z-index: 10;
   }
   .mini-stat {
     display: flex;
@@ -274,8 +267,8 @@
     gap: 6px;
     background: transparent;
     color: var(--text-dim);
-    border: 1px solid #2a2e3f;
-    padding: 7px 12px;
+    border: none;
+    padding: 4px 0;
     border-radius: 6px;
     font-size: 12px;
     font-weight: 500;
@@ -288,7 +281,6 @@
   }
   .link-mini:hover {
     color: var(--text);
-    border-color: var(--accent);
     background: rgba(56, 189, 248, 0.06);
   }
   .link-mini svg { display: block; flex-shrink: 0; }
@@ -987,10 +979,9 @@
     /* v7: FAB is `position: fixed` now, so the layout no longer needs
      * to reserve a FAB_ROW_PX (76) below the canvas. 280 → 204.
      * The chip-row above the board (the collapsed left side-col)
-     * still consumes ~124px, plus the title + subtitle chrome at
-     * the top (~80px) → 80 + 124 = 204. The board sizes itself to
-     * fitBoard()'s availH = visibleH - 204, which on iPhone SE
-     * (667px) gives 463px of board height ≈ 21px cells. */
+     * still consumes ~124px, plus the title chrome at
+     * the top (~50px) → 50 + 124 = 174. Using 204 for
+     * safety margin. */
     --header-reserved-px: 204px;
   }
 
@@ -1227,7 +1218,6 @@
          src="audio/pop1.ogg" aria-hidden="true"></audio>
 
   <h1>Idiom Tetris</h1>
-  <div class="subtitle">v-det-n · 3 falling words = 1 idiom cleared</div>
 
   <div class="layout">
     <aside class="side-col left" aria-label="Game info (left)">
@@ -1557,22 +1547,21 @@ var bootComplete = false;
  * Compute the largest cell size that keeps the entire board visible
  * inside the current viewport, then resize the canvas accordingly.
  * Height is the binding constraint (22 rows × CELL must fit in
- * innerHeight minus the title/subtitle/padding). Width is also capped
+ * innerHeight minus the title/padding). Width is also capped
  * to keep the side panels comfortably visible.
  *
  * Re-invoked on window resize so the layout stays correct when the
  * user resizes the browser or rotates the device.
  */
 function fitBoard() {
-  /* Reserve ~80px for the title, subtitle and body padding, then
+  /* Reserve ~50px for the title and body padding, then
      give the side panels (100px each) the rest of the horizontal
      budget. The board takes whatever's left. With 10 cols × 22 rows
      the board is naturally a portrait 5:11. We use a 5:11 aspect
      hint so cells stay square (wider cells let long words like
      "clanger" or "embarrassment" fit comfortably). */
   /* Header reservation is *driven* by the `--header-reserved-px`
-   * custom property. The desktop default is 80 (just title +
-   * subtitle). In `body.touch-mode` the same property is set to
+   * custom property. The desktop default is 50 (just title).
    * 280 because the side-cols collapse into a horizontal mini-bar
    * ABOVE the board, eating ~134px of vertical space, plus the
    * FAB row lives BELOW the canvas (~76px). Reading the CSS
@@ -1899,16 +1888,12 @@ async function loadPool() {
   /* Try embedded first (works on file:// too) */
   if (window.__IDIOMS_POOL__) {
     POOL = window.__IDIOMS_POOL__;
-    document.querySelector('.subtitle').textContent =
-      `v-det-n · ${Object.keys(POOL.lookup).length} idioms loaded (embedded)`;
     return;
   }
   try {
     const res = await fetch('idioms_compact.json');
     if (res.ok) {
       POOL = await res.json();
-      document.querySelector('.subtitle').textContent =
-        `v-det-n · ${Object.keys(POOL.lookup).length} idioms loaded`;
       return;
     }
     throw new Error('no fetch');
@@ -1930,8 +1915,6 @@ async function loadPool() {
         'jump|the|shark':  {display:'jump the shark',  cn:'走下坡路', en:'Begin to decline in quality.'},
       }
     };
-    document.querySelector('.subtitle').textContent =
-      'v-det-n · demo pool (offline)';
   }
 }
 

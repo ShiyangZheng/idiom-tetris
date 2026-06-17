@@ -116,9 +116,9 @@
    *  live).
    *  ============================================================ */
   :root {
-    --bg: #1a1d2b;        /* page background */
-    --grid-bg: #252a3d;   /* board background + idle cells */
-    --grid-line: #2f354a; /* gridline color */
+    --bg: #0f1117;        /* page background — matches the dark frame behind the game */
+    --grid-bg: #181c27;   /* board background + idle cells */
+    --grid-line: #262c3c; /* gridline color */
     --verb: #ff7eb3;      /* pink   — verb blocks (slightly desaturated for higher text contrast) */
     --det:  #3fc9c0;      /* teal   — determiner blocks */
     --noun: #ffc94d;      /* gold   — noun blocks */
@@ -129,7 +129,7 @@
     --text-dim: #9aa0b4;  /* secondary text (hints, sub-labels) */
     --accent: #38bdf8;    /* highlight color (badges) — cool teal */
     --clear: #10b981;     /* success color (cleared counter) */
-    /* Vertical pixels that the title consumes in each layout mode.
+    /* Vertical pixels that the title consumes in each layout mode. */
     --header-reserved-px: 50px;
   }
   * { box-sizing: border-box; }
@@ -157,11 +157,13 @@
   }
   .layout {
     display: flex;
-    gap: 20px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 16px;
     align-items: flex-start;
     justify-content: center;
     width: 100%;
-    overflow: visible;
+    box-sizing: border-box;
   }
   .board-wrap {
     position: relative;
@@ -183,8 +185,16 @@
     flex: 0 0 80px;
     align-items: center;
     padding-top: 8px;
+    min-width: 0;
+  }
+  /* Right sidebar has more content (legend, kbd-row, modal buttons, etc.)
+     so it needs extra width. */
+  .side-col.right {
+    width: 110px;
+    flex: 0 0 110px;
     position: relative;
     z-index: 10;
+    min-width: 0;
   }
   .mini-stat {
     display: flex;
@@ -307,6 +317,16 @@
     display: flex;
     gap: 4px;
     margin-top: 4px;
+  }
+  /* Modal duration row has 4 buttons — wrap to 2×2 */
+  #pause-toggle {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #pause-toggle .toggle-mini {
+    flex: 1 1 42%;
+    padding: 5px 6px;
+    font-size: 10px;
   }
   .lang-toggle .toggle-mini {
     flex: 1;
@@ -1588,7 +1608,7 @@ function fitBoard() {
    * this, SIDE_PX=296 on a 375px phone would clamp cellByW to
    * (375-296-32)/10 ≈ 4.7px, forcing CELL up to cellMin even when
    * the height budget could have given bigger cells. */
-  const SIDE_PX    = document.body.classList.contains('touch-mode') ? 0 : (80 + 80 + 72);
+  const SIDE_PX    = document.body.classList.contains('touch-mode') ? 0 : (80 + 110 + 40);
   /* v8: even though the FAB is `position: fixed` (it doesn't
    * participate in the document's layout flow), we still have to
    * reserve vertical space for it. Why? Because the FAB is drawn
@@ -2626,7 +2646,7 @@ function loop(t) {
   step(dt);
   draw();
   if (gameOver) {
-    $('status').innerHTML = '<span class="gameover">GAME OVER</span>';
+    const _s = $('status'); if (_s) _s.innerHTML = '<span class="gameover">GAME OVER</span>';
   }
   requestAnimationFrame(loop);
 }
@@ -2659,7 +2679,7 @@ document.addEventListener('keydown', (e) => {
      * a piece behind the backdrop. */
     return;
   }
-  if (e.key === 'p' || e.key === 'P') { paused = !paused; $('status').textContent = paused ? 'paused' : 'playing'; return; }
+  if (e.key === 'p' || e.key === 'P') { paused = !paused; const _s = $('status'); if (_s) _s.textContent = paused ? 'paused' : 'playing'; return; }
   if (paused) return;
   if (e.key === 'ArrowLeft') {
     if (!collides(current, -1, 0)) current.x -= 1;
@@ -2931,7 +2951,7 @@ function enableTouchMode() {
       if (gameOver) return;
       if (!$('clear-modal').hidden) return;
       paused = !paused;
-      $('status').textContent = paused ? 'paused' : 'playing';
+      const _s = $('status'); if (_s) _s.textContent = paused ? 'paused' : 'playing';
       // Sync the FAB icon so it reflects the current state.
       $('fab-pause').textContent = paused ? '▶' : '⏸';
     });
@@ -3191,8 +3211,9 @@ function initModals() {
   /* Game over → open modal. We hook into the existing status
    * element via a MutationObserver since loop() is the only place
    * that flips it to GAME OVER. */
-  const statusEl = $('status');
+  const statusEl = $('status') || null;
   let _wasGameOver = false;
+  if (statusEl) {
   new MutationObserver(() => {
     const isGameOver = statusEl.querySelector('.gameover') !== null;
     if (isGameOver && !_wasGameOver) {
@@ -3200,6 +3221,7 @@ function initModals() {
     }
     _wasGameOver = isGameOver;
   }).observe(statusEl, { childList: true, subtree: true, characterData: true });
+  }
 
   /* Game-over modal buttons */
   $('btn-submit-lb').addEventListener('click', onSubmitLeaderboard);

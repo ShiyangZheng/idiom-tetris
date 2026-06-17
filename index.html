@@ -167,6 +167,7 @@
     align-items: flex-start;
     justify-content: center;
     width: 100%;
+    overflow: visible;
   }
   .board-wrap {
     position: relative;
@@ -324,6 +325,61 @@
     text-align: center;
     font-size: 11px;
     color: var(--text-dim);
+  }
+
+  /* Size slider — minimalist, dark theme, matches side-col */
+  .size-slider-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  #board-size-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: #2a2e3f;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    margin-top: 2px;
+  }
+  #board-size-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid rgba(255,255,255,0.15);
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+  #board-size-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  #board-size-slider::-moz-range-thumb {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid rgba(255,255,255,0.15);
+    cursor: pointer;
+  }
+
+  /* Icon-only variant of restart-mini for Restart/Leaderboard */
+  .restart-mini.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px;
+    margin-top: 4px;
+    aspect-ratio: 1;
+    width: auto;
+    min-width: 32px;
+  }
+  .restart-mini.icon-btn svg {
+    width: 16px;
+    height: 16px;
+    display: block;
   }
   .panel {
     background: var(--grid-bg);
@@ -1223,6 +1279,12 @@
         </div>
         <div id="share-status-side" class="share-status" aria-live="polite"></div>
       </div>
+      <!-- Board size slider — lets player scale CELL up/down -->
+      <div class="mini-stat size-slider-wrap">
+        <div class="mini-label">Size</div>
+        <input type="range" id="board-size-slider" min="0.7" max="1.4" step="0.05"
+               value="1" aria-label="Board size multiplier">
+      </div>
     </aside>
 
     <div class="board-wrap">
@@ -1287,8 +1349,12 @@
           <button class="toggle-mini" data-dur="0" id="btn-pause-manual" aria-pressed="false" type="button">∞</button>
         </div>
       </div>
-      <button id="restart" class="restart-mini">Restart</button>
-      <button id="btn-view-lb" class="restart-mini">🏆 Leaderboard</button>
+      <button id="restart" class="restart-mini icon-btn" type="button" aria-label="Restart game">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      </button>
+      <button id="btn-view-lb" class="restart-mini icon-btn" type="button" aria-label="View leaderboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4V2Z"/></svg>
+      </button>
       <a class="link-mini" id="btn-github" href="https://github.com/ShiyangZheng/idiom-tetris"
          target="_blank" rel="noopener noreferrer" title="View source on GitHub" aria-label="View source on GitHub">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -1297,7 +1363,6 @@
       </a>
       <a class="link-mini" id="btn-author" href="https://shiyangzheng.top"
          target="_blank" rel="noopener noreferrer" title="ZHENG Shiyang's homepage">@ZHENG Shiyang</a>
-      <div class="status-mini"><span id="status">playing</span></div>
     </aside>
   </div>
 
@@ -1462,6 +1527,7 @@
 const COLS = 13;
 const ROWS = 22;
 let CELL = 50;          // dynamic; recomputed by fitBoard() so the whole 22x7 grid fits the viewport
+let boardScale = 1;      // size slider multiplier (0.7–1.4), read from #board-size-slider
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 
@@ -1587,7 +1653,12 @@ function fitBoard() {
    * — 20*22=440 + 80 = 520, leaving 47px of headroom so the chip
    * row above the board never gets squeezed. */
   const cellMin = document.body.classList.contains('touch-mode') ? 20 : 28;
-  let nextCell = Math.max(cellMin, Math.min(44, cellByH, cellByW));
+  /* Apply size slider multiplier — clamps the final cell so it
+     never drops below cellMin or exceeds a sane ceiling (56). */
+  const scale = document.getElementById('board-size-slider')
+    ? parseFloat(document.getElementById('board-size-slider').value) : 1;
+  boardScale = scale;
+  let nextCell = Math.max(cellMin, Math.min(56, cellByH * scale, cellByW * scale));
   /* v8: hysteresis — only apply CELL change if the new value
    * differs from the current value by at least 2px. Why: on iOS
    * the URL bar showing/hiding fires several rapid
@@ -1634,6 +1705,9 @@ function fitBoardDebounced() {
   _fitTimer = setTimeout(() => { _fitTimer = null; fitBoard(); }, 150);
 }
 window.addEventListener('resize', fitBoardDebounced);
+/* Size slider: re-run fitBoard on each change for live preview */
+document.getElementById('board-size-slider')
+  ?.addEventListener('input', () => { _fitTimer && clearTimeout(_fitTimer); _fitTimer = setTimeout(() => { _fitTimer = null; fitBoard(); }, 30); });
 /* visualViewport fires on iOS when the URL bar shows/hides, which
  * is the most common cause of a half-cut board on phones. Listening
  * here keeps the cell size in sync with what the user actually sees. */

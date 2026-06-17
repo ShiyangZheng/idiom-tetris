@@ -1015,6 +1015,152 @@
   }
 
   /* ============================================================
+   *  MOBILE — game-over modal polish
+   *  On narrow viewports the centered card needs:
+   *    - respect iOS safe-area insets (notch / home indicator)
+   *    - drop the fixed min-width (320px) so it doesn't overflow
+   *      a 360px-wide screen
+   *    - tight padding so the name input + 3 buttons still fit
+   *      without scrolling on short screens (e.g. iPhone SE)
+   *    - larger touch targets (44px min) for the buttons
+   *    - smaller score value so the modal doesn't feel crowded
+   *  The same rules apply to the clear (idiom) and leaderboard
+   *  modals because they reuse .gameover-card.
+   *  ============================================================ */
+  @media (max-width: 600px) {
+    .gameover-modal {
+      /* Respect the iOS safe area so the card isn't covered by
+       * the home indicator on notched devices. */
+      padding: 16px;
+      padding-top: max(16px, env(safe-area-inset-top));
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+      align-items: center;  /* keep card vertically centered */
+    }
+    .gameover-card {
+      min-width: 0;          /* drop the 320px floor on mobile */
+      max-width: 100%;
+      width: 100%;
+      padding: 20px 20px 18px;
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.75);
+      /* Cap height so the card never exceeds the visible viewport
+       * — on iPhone SE (667px) + modal padding the card is ~520px
+       * tall and we need it to fit without internal scroll. */
+      max-height: calc(100vh - 32px);
+      max-height: calc(100dvh - 32px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .gameover-card h2 {
+      margin: 0 0 14px 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .final-stats {
+      gap: 24px;
+      margin-bottom: 16px;
+    }
+    .final-stats .val {
+      font-size: 28px;        /* still bigger than 28px desktop
+                               * was 32px; 28px reads cleanly on
+                               * 360–414px screens without crowding */
+    }
+    .final-stats .lbl {
+      font-size: 9px;
+      letter-spacing: 1px;
+    }
+    .name-row {
+      margin-bottom: 14px;
+    }
+    .name-label {
+      font-size: 11px;
+      margin-bottom: 5px;
+    }
+    .name-input {
+      padding: 11px 12px;    /* bump to 44px min touch target */
+      font-size: 15px;       /* prevent iOS auto-zoom on focus */
+    }
+    .modal-actions {
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .btn-primary, .btn-secondary {
+      padding: 13px 16px;    /* 44px min touch target */
+      font-size: 14px;
+      border-radius: 9px;
+    }
+    .btn-text {
+      padding: 10px 16px;
+    }
+    .share-status {
+      font-size: 12px;
+      min-height: 18px;
+    }
+    /* Clear (idiom) modal: same shell, but its .clear-card overrides
+     * are scoped — only adjust what's shared via .gameover-card. */
+    .clear-card {
+      min-width: 0;
+      max-width: 100%;
+      padding: 28px 22px 18px;
+    }
+    .clear-idiom {
+      font-size: 26px;
+      margin-bottom: 12px;
+    }
+    .clear-meaning.prim { font-size: 16px; }
+    .clear-meaning.sec  { font-size: 12px; }
+    .clear-close { top: 4px; right: 6px; font-size: 24px; }
+  }
+
+  /* Extra-narrow phones (≤360px) — squeeze padding more so the
+   * three buttons stack comfortably and the score doesn't get
+   * clipped. */
+  @media (max-width: 360px) {
+    .gameover-card { padding: 18px 16px 16px; }
+    .final-stats .val { font-size: 24px; }
+    .final-stats { gap: 16px; }
+  }
+
+  /* Landscape on short phones (e.g. iPhone in landscape, height
+   * < 500px) — switch the card to a 2-column grid so the buttons
+   * sit beside the stats instead of stacking into a scroll. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .gameover-card {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 16px 20px;
+      text-align: left;
+      align-items: center;
+      max-width: 640px;
+      padding: 18px 22px;
+    }
+    .gameover-card h2 {
+      grid-column: 1 / -1;
+      margin: 0;
+      text-align: center;
+      font-size: 17px;
+    }
+    .final-stats {
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 0;
+    }
+    .final-stats > div {
+      flex-direction: row;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .final-stats .val { font-size: 22px; }
+    .name-row { margin-bottom: 0; }
+    .name-label { display: none; }
+    .name-input { padding: 8px 10px; }
+    .modal-actions { gap: 6px; margin-bottom: 0; }
+    .btn-primary, .btn-secondary { padding: 9px 12px; font-size: 13px; }
+    .btn-text { padding: 6px 12px; font-size: 12px; }
+    .share-status { font-size: 11px; min-height: 14px; }
+  }
+
+  /* ============================================================
    *  TOUCH-MODE: HEADER RESERVATION + iOS BOUNCE KILL
    *  v6 note: in v5 we locked the body with position:fixed +
    *  height:100dvh + overflow:hidden to prevent page-scroll

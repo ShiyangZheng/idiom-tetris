@@ -1472,6 +1472,8 @@ const ctx = canvas.getContext('2d');
  * lookup itself stays lazy (first call) since #next-canvas is in
  * the <body> below this script. */
 let nextCanvas, nextCtx, nextTypeBadge;
+let nextCanvasDpr = 0;   // tracks current dpr so we only resize nextCanvas when it changes
+const NEXT_W = 120, NEXT_H = 56;   // next-canvas CSS display size (matches HTML attributes)
 
 /* Boot flag — flipped to true at the end of loadPool().then(...).
  * drawNext() checks this so the early fitBoard() resize path
@@ -1605,8 +1607,12 @@ function fitBoard() {
     nextCell = CELL;
   }
   CELL = nextCell;
-  canvas.width  = COLS * CELL;
-  canvas.height = ROWS * CELL;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = COLS * CELL * dpr;
+  canvas.height = ROWS * CELL * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  canvas.style.width  = (COLS * CELL) + 'px';
+  canvas.style.height = (ROWS * CELL) + 'px';
   /* If the next-piece preview canvas already exists, redraw it so
      the cell size change propagates. */
   if (typeof drawNext === 'function') drawNext();
@@ -1660,8 +1666,21 @@ function drawNext() {
     nextCtx    = nextCanvas.getContext('2d');
     nextTypeBadge = document.getElementById('next-type');
   }
-  /* Clear preview */
-  nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+  /* HiDPI fix: apply once per dpr change (avoid clearing the
+     canvas on every call). */
+  const dpr = window.devicePixelRatio || 1;
+  if (Math.abs(nextCanvasDpr - dpr) > 0.01) {
+    nextCanvas.width  = NEXT_W * dpr;
+    nextCanvas.height = NEXT_H * dpr;
+    nextCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    nextCanvas.style.width  = NEXT_W + 'px';
+    nextCanvas.style.height = NEXT_H + 'px';
+    nextCanvasDpr = dpr;
+  }
+  /* Clear preview — use CSS-px size (NEXT_W/NEXT_H), NOT backing-store
+     size. After setTransform(dpr), (0,0,NEXT_W,NEXT_H) covers the full
+     canvas in CSS-px space, which maps to the full backing store. */
+  nextCtx.clearRect(0, 0, NEXT_W, NEXT_H);
   /* Pre-boot guard: `next` is a `let` binding declared further down.
    * Until the boot promise resolves (loadPool() → restart()), the
    * binding lives in the TDZ — and `typeof` on a TDZ `let` actually
@@ -1673,14 +1692,13 @@ function drawNext() {
     }
     return;
   }
-  /* Render the upcoming block in the center of the small canvas */
+  /* Render the upcoming block in the center of the small canvas.
+     All layout uses CSS-px constants (NEXT_W/NEXT_H) so the
+     calculation is correct regardless of the backing-store multiplier. */
   const margin = 6;
-  const cellSize = Math.min(
-    nextCanvas.width - 2 * margin,
-    nextCanvas.height - 2 * margin
-  );
-  const x = (nextCanvas.width - cellSize) / 2;
-  const y = (nextCanvas.height - cellSize) / 2;
+  const cellSize = Math.min(NEXT_W - 2*margin, NEXT_H - 2*margin);
+  const x = (NEXT_W - cellSize) / 2;
+  const y = (NEXT_H - cellSize) / 2;
   /* Reuse the same drawCell logic so colors / fonts match the main board */
   drawCellOnCtx(nextCtx, next.type, next.word, x, y, cellSize, 1, false);
   /* Update the type badge (only if the badge element still exists —
@@ -2373,7 +2391,7 @@ function drawGrid() {
  */
 function draw() {
   ctx.fillStyle = getCss('--grid-bg');
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, COLS * CELL, ROWS * CELL);
   drawGrid();
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {

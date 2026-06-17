@@ -163,7 +163,7 @@
   .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 12px; }
   .layout {
     display: flex;
-    gap: 32px;
+    gap: 20px;
     align-items: flex-start;
     justify-content: center;
     width: 100%;
@@ -172,7 +172,7 @@
     position: relative;
     background: var(--grid-bg);
     border-radius: 8px;
-    padding: 8px;
+    padding: 4px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.4);
     /* board always fits the viewport — CELL is computed in JS, no scrollbars */
   }
@@ -184,8 +184,8 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    width: 100px;
-    flex: 0 0 100px;
+    width: 80px;
+    flex: 0 0 80px;
     align-items: center;
     padding-top: 8px;
   }
@@ -1173,7 +1173,7 @@
     <aside class="side-col left" aria-label="Game info (left)">
       <div class="mini-stat">
         <div class="mini-label">Next</div>
-        <canvas id="next-canvas" width="120" height="56"></canvas>
+        <canvas id="next-canvas" width="80" height="40"></canvas>
       </div>
       <div class="mini-stat">
         <div class="mini-label">Cleared</div>
@@ -1473,7 +1473,7 @@ const ctx = canvas.getContext('2d');
  * the <body> below this script. */
 let nextCanvas, nextCtx, nextTypeBadge;
 let nextCanvasDpr = 0;   // tracks current dpr so we only resize nextCanvas when it changes
-const NEXT_W = 120, NEXT_H = 56;   // next-canvas CSS display size (matches HTML attributes)
+const NEXT_W = 80, NEXT_H = 40;   // next-canvas CSS display size (matches HTML attributes)
 
 /* Boot flag — flipped to true at the end of loadPool().then(...).
  * drawNext() checks this so the early fitBoard() resize path
@@ -1529,7 +1529,7 @@ function fitBoard() {
    * this, SIDE_PX=296 on a 375px phone would clamp cellByW to
    * (375-296-32)/10 ≈ 4.7px, forcing CELL up to cellMin even when
    * the height budget could have given bigger cells. */
-  const SIDE_PX    = document.body.classList.contains('touch-mode') ? 0 : (100 + 100 + 96);
+  const SIDE_PX    = document.body.classList.contains('touch-mode') ? 0 : (80 + 80 + 72);
   /* v8: even though the FAB is `position: fixed` (it doesn't
    * participate in the document's layout flow), we still have to
    * reserve vertical space for it. Why? Because the FAB is drawn

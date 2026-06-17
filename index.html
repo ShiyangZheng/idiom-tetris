@@ -144,14 +144,14 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 16px;
+    padding: 24px 8px;
     min-height: 100vh;
   }
   h1 {
-    margin: 0 0 4px 0;
-    font-size: 22px;
+    margin: 0 0 24px 0;
+    font-size: 20px;
     font-weight: 300;
-    letter-spacing: 3px;
+    letter-spacing: 4px;
     text-transform: uppercase;
     color: var(--text);
   }
@@ -159,7 +159,7 @@
     display: flex;
     flex-direction: row;
     flex-wrap: nowrap;
-    gap: 16px;
+    gap: 32px;
     align-items: flex-start;
     justify-content: center;
     width: 100%;
@@ -188,25 +188,58 @@
     min-width: 0;
   }
   /* Right sidebar has more content (legend, kbd-row, modal buttons, etc.)
-     so it needs extra width. */
+     so it needs extra width to match the reference layout. */
   .side-col.right {
-    width: 110px;
-    flex: 0 0 110px;
+    width: 140px;
+    flex: 0 0 140px;
     position: relative;
     z-index: 10;
     min-width: 0;
+    padding-left: 0;
+    gap: 16px;
   }
+  /* Left sidebar narrower since it only carries stats + slider + action row. */
+  .side-col.left {
+    width: 110px;
+    flex: 0 0 110px;
+    gap: 16px;
+    align-items: stretch;
+  }
+  .side-col.left .mini-label,
+  .side-col.left .mini-val,
+  .side-col.right .mini-label,
+  .side-col.right .mini-val {
+    text-align: center;
+    align-self: stretch;
+    width: 100%;
+  }
+  /* Restart/Leaderboard icon buttons centered in their column. */
+  .side-col.right .restart-mini.icon-btn {
+    align-self: center;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .side-col.right .link-mini {
+    justify-content: center;
+  }
+  /* Flex spacer that pushes whatever's after it to the bottom of the
+   * column. Used in both side-cols so the bottom widget (Size slider
+   * on the left, GitHub link on the right) sits at the same vertical
+   * position. */
+  .col-spacer { flex: 1 1 auto; }
   .mini-stat {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
+    width: 100%;
   }
   .mini-label {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 1px;
     color: var(--text-dim);
+    align-self: flex-start;
   }
   .mini-val {
     font-size: 24px;
@@ -220,8 +253,8 @@
   }
   .legend-row .swatch {
     display: inline-block;
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     border-radius: 3px;
   }
   .controls-mini .kbd-row {
@@ -317,6 +350,7 @@
     display: flex;
     gap: 4px;
     margin-top: 4px;
+    width: 100%;
   }
   /* Modal duration row has 4 buttons — wrap to 2×2 */
   #pause-toggle {
@@ -346,8 +380,9 @@
   .size-slider-wrap {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     gap: 4px;
+    width: 100%;
   }
   #board-size-slider {
     -webkit-appearance: none;
@@ -385,6 +420,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    align-self: flex-start;
     padding: 7px;
     margin-top: 4px;
     aspect-ratio: 1;
@@ -442,7 +478,7 @@
   }
   #next-canvas {
     display: block;
-    margin: 4px auto 2px;
+    margin: 4px 0 2px;
     background: var(--bg);
     border-radius: 6px;
   }
@@ -1015,7 +1051,6 @@
     /* Mini-stat cells are fixed-height, but the share button + status
        are taller. Make this slot a flex column that auto-sizes and
        still aligns with its neighbors. */
-    min-height: auto;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -1027,8 +1062,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 38px;
+    height: 38px;
     margin: 0;
     padding: 0;
     border: 1px solid rgba(148, 163, 184, 0.20);
@@ -1044,7 +1079,7 @@
   .share-btn:hover  { background: rgba(255, 255, 255, 0.10); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.35); }
   .share-btn:active { transform: scale(0.92); }
   .share-btn:focus-visible { outline: 2px solid rgba(56, 189, 248, 0.5); outline-offset: 2px; }
-  .share-btn svg { display: block; width: 15px; height: 15px; }
+  .share-btn svg { display: block; width: 18px; height: 18px; }
 
   /* Tiny status line right under the share button (auto-hides) */
   .share-status {
@@ -1087,8 +1122,8 @@
     border: 1px solid rgba(148, 163, 184, 0.20);
     border-radius: 8px;
     padding: 0;
-    width: 32px;
-    height: 32px;
+    width: 38px;
+    height: 38px;
     color: #94a3b8;
     background: rgba(255, 255, 255, 0.06);
     cursor: pointer;
@@ -1103,7 +1138,7 @@
   .ib-install:hover     { background: rgba(255, 255, 255, 0.10); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.35); }
   .ib-install:active    { transform: scale(0.92); }
   .ib-install:focus-visible { outline: 2px solid rgba(56, 189, 248, 0.5); outline-offset: 2px; }
-  .ib-install svg       { display: block; width: 15px; height: 15px; }
+  .ib-install svg       { display: block; width: 18px; height: 18px; }
   /* The .hidden utility is the ONLY way the install button is
    *  removed from the layout (see CONTRACT in the install script
    *  below). The button does NOT toggle on click — only on the
@@ -1128,8 +1163,8 @@
     border: 1px solid rgba(148, 163, 184, 0.20);
     border-radius: 8px;
     padding: 0;
-    width: 32px;
-    height: 32px;
+    width: 38px;
+    height: 38px;
     color: #94a3b8;
     background: rgba(255, 255, 255, 0.06);
     cursor: pointer;
@@ -1145,7 +1180,7 @@
   .music-btn:hover   { background: rgba(255, 255, 255, 0.10); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.35); }
   .music-btn:active  { transform: scale(0.92); }
   .music-btn:focus-visible { outline: 2px solid rgba(56, 189, 248, 0.5); outline-offset: 2px; }
-  .music-btn svg     { display: block; width: 15px; height: 15px; }
+  .music-btn svg     { display: block; width: 18px; height: 18px; }
   /* Muted state: still purple, but dimmed so the off-state reads
    *  as "available, paused" instead of "broken". */
   .music-btn.off     { opacity: 0.55; }
@@ -1243,7 +1278,7 @@
     <aside class="side-col left" aria-label="Game info (left)">
       <div class="mini-stat">
         <div class="mini-label">Next</div>
-        <canvas id="next-canvas" width="80" height="40"></canvas>
+        <canvas id="next-canvas" width="96" height="48"></canvas>
       </div>
       <div class="mini-stat">
         <div class="mini-label">Cleared</div>
@@ -1299,6 +1334,9 @@
         <input type="range" id="board-size-slider" min="0.7" max="1.4" step="0.05"
                value="1" aria-label="Board size multiplier">
       </div>
+      <!-- Spacer pushes the Size slider down so it visually aligns with
+           the right-side Restart button (both bottom of each column). -->
+      <div class="col-spacer" aria-hidden="true"></div>
     </aside>
 
     <div class="board-wrap">
@@ -1377,6 +1415,9 @@
       </a>
       <a class="link-mini" id="btn-author" href="https://shiyangzheng.top"
          target="_blank" rel="noopener noreferrer" title="ZHENG Shiyang's homepage">@ZHENG Shiyang</a>
+      <!-- Spacer — keeps the right column's last link anchored to bottom
+           so it visually balances the @ZHENG line. -->
+      <div class="col-spacer" aria-hidden="true"></div>
     </aside>
   </div>
 
@@ -1553,7 +1594,7 @@ const ctx = canvas.getContext('2d');
  * the <body> below this script. */
 let nextCanvas, nextCtx, nextTypeBadge;
 let nextCanvasDpr = 0;   // tracks current dpr so we only resize nextCanvas when it changes
-const NEXT_W = 80, NEXT_H = 40;   // next-canvas CSS display size (matches HTML attributes)
+const NEXT_W = 96, NEXT_H = 48;   // next-canvas CSS display size (matches HTML attributes)
 
 /* Boot flag — flipped to true at the end of loadPool().then(...).
  * drawNext() checks this so the early fitBoard() resize path
@@ -1608,7 +1649,7 @@ function fitBoard() {
    * this, SIDE_PX=296 on a 375px phone would clamp cellByW to
    * (375-296-32)/10 ≈ 4.7px, forcing CELL up to cellMin even when
    * the height budget could have given bigger cells. */
-  const SIDE_PX    = document.body.classList.contains('touch-mode') ? 0 : (80 + 110 + 40);
+  const SIDE_PX    = document.body.classList.contains('touch-mode') ? 0 : (110 + 140 + 64 + 16);
   /* v8: even though the FAB is `position: fixed` (it doesn't
    * participate in the document's layout flow), we still have to
    * reserve vertical space for it. Why? Because the FAB is drawn

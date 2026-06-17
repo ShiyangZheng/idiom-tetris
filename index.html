@@ -1993,6 +1993,7 @@ let level = 1;         // increases every 8 clears; speeds up the drop
 let dropTimer = 0;     // ms accumulated since last automatic drop
 let lastTime = 0;      // last requestAnimationFrame timestamp
 let gameOver = false;
+let _gameOverModalShown = false;  // dedup: ensure onGameOver() fires once per game
 let paused = false;
 let dropInterval = 800; // ms per cell; decreases as `level` rises
 
@@ -2686,8 +2687,9 @@ function loop(t) {
   lastTime = t;
   step(dt);
   draw();
-  if (gameOver) {
-    const _s = $('status'); if (_s) _s.innerHTML = '<span class="gameover">GAME OVER</span>';
+  if (gameOver && !_gameOverModalShown) {
+    _gameOverModalShown = true;
+    onGameOver();
   }
   requestAnimationFrame(loop);
 }
@@ -3133,6 +3135,7 @@ function restart() {
   cleared = 0; score = 0; lines = 0; level = 1;
   dropTimer = 0;
   gameOver = false;
+  _gameOverModalShown = false;
   paused = false;
   dropInterval = 800;
   /* If a clear-modal is up (paused mid-clear), close it so
@@ -3249,20 +3252,10 @@ function hideModal(id) {
 
 /* ---------- Boot: wire game-over modal + buttons ---------- */
 function initModals() {
-  /* Game over → open modal. We hook into the existing status
-   * element via a MutationObserver since loop() is the only place
-   * that flips it to GAME OVER. */
-  const statusEl = $('status') || null;
-  let _wasGameOver = false;
-  if (statusEl) {
-  new MutationObserver(() => {
-    const isGameOver = statusEl.querySelector('.gameover') !== null;
-    if (isGameOver && !_wasGameOver) {
-      onGameOver();
-    }
-    _wasGameOver = isGameOver;
-  }).observe(statusEl, { childList: true, subtree: true, characterData: true });
-  }
+  /* Game over → open modal. Direct call from loop() is the canonical
+   * trigger now (the legacy MutationObserver path was dropped when
+   * #status was removed from the DOM). */
+  _gameOverModalShown = false;
 
   /* Game-over modal buttons */
   $('btn-submit-lb').addEventListener('click', onSubmitLeaderboard);
@@ -3293,8 +3286,20 @@ function initModals() {
 function onGameOver() {
   $('final-score').textContent   = score.toLocaleString();
   $('final-cleared').textContent = cleared;
-  $('share-status').textContent  = '';
-  $('share-status').className    = 'share-status';
+  const _ss = $('share-status');
+  _ss.textContent  = '';
+  _ss.className    = 'share-status';
+  _ss.dataset.lbOk = '0';
+  /* Reset the submit button (cooldown from a previous game is fine to keep) */
+  const _btn = $('btn-submit-lb');
+  const _cdLeft = _lbCooldownRemaining();
+  if (_cdLeft > 0) {
+    _btn.disabled = true;
+    _btn.textContent = `Wait ${Math.ceil(_cdLeft/1000)}s to resubmit`;
+  } else {
+    _btn.disabled = false;
+    _btn.textContent = 'Submit to leaderboard';
+  }
   /* If a clear-modal is still up (cascade that ended in a
    * top-out), dismiss it so the game-over modal is the only
    * thing the player sees. */
@@ -3324,14 +3329,19 @@ function onGameOver() {
  *   2. copy-to-clipboard   — older desktop browsers without any
  *                            share-sheet support
  */
-async function onShare() {
+async function onShare(e) {
+  if (e && typeof e.preventDefault === 'function') {
+    e.preventDefault();
+    e.stopPropagation();
+  }
   const btn = $('btn-share');
   if (btn.disabled) return;
   btn.disabled = true;
   try {
     /* Delegate to the shared flow — same card image + same text
-       payload as the left-side Share button, just with the
-       "gameover" subtitle ("I scored X — Y idioms cleared!"). */
+       payload as the left-side Share button. The status slot is
+       the one inside this modal so the toast doesn't get
+       clipped by other modals. */
     if (typeof window.shareWithCard === 'function') {
       await window.shareWithCard('gameover', $('share-status'));
     } else {
@@ -3352,7 +3362,7 @@ async function onShare() {
       status.textContent = 'Share canceled.';
       status.className   = 'share-status';
     } else {
-      status.textContent = 'Share failed: ' + (e && e.message ? e.message : e);
+      status.textContent = '✗ Share failed: ' + (e && e.message ? e.message : e);
       status.className   = 'share-status err';
     }
   } finally {
@@ -3393,24 +3403,78 @@ async function copyToClipboard(text) {
  */
 const LB_NAME_RE = /^[\p{L}\p{N}_\- ]{1,12}$/u;
 
+/* Cooldown: 30s between submits per (browser+name). Persisted in
+ * localStorage so a refresh can't bypass it. */
+const LB_COOLDOWN_MS = 30 * 1000;
+const LB_COOLDOWN_KEY = 'idiom-tetris:lb-cooldown-until';
+function _lbCooldownRemaining() {
+  try {
+    const until = parseInt(localStorage.getItem(LB_COOLDOWN_KEY) || '0', 10);
+    return Math.max(0, until - Date.now());
+  } catch { return 0; }
+}
+function _lbSetCooldown() {
+  try { localStorage.setItem(LB_COOLDOWN_KEY, String(Date.now() + LB_COOLDOWN_MS)); } catch {}
+}
+function _lbClearCooldown() {
+  try { localStorage.removeItem(LB_COOLDOWN_KEY); } catch {}
+}
+let _lbCooldownTimer = null;
+function _lbStartCooldownTicker(btn, status) {
+  if (_lbCooldownTimer) { clearInterval(_lbCooldownTimer); _lbCooldownTimer = null; }
+  const tick = () => {
+    const left = _lbCooldownRemaining();
+    if (left <= 0) {
+      btn.disabled = false;
+      btn.textContent = 'Submit to leaderboard';
+      if (status && status.dataset.lbOk === '1') {
+        /* keep the success line; otherwise restore neutral */
+        status.textContent = status.textContent;
+      }
+      if (_lbCooldownTimer) { clearInterval(_lbCooldownTimer); _lbCooldownTimer = null; }
+      return;
+    }
+    btn.disabled = true;
+    const s = Math.ceil(left / 1000);
+    btn.textContent = `Wait ${s}s to resubmit`;
+  };
+  tick();
+  _lbCooldownTimer = setInterval(tick, 500);
+}
+
 async function onSubmitLeaderboard() {
-  const status = $('share-status');    /* re-use the slot under the buttons */
+  const status = $('share-status');
   const btn    = $('btn-submit-lb');
   if (btn.disabled) return;
+
+  /* Hard cooldown gate — checked again inside try/catch via _lbCooldownRemaining */
+  const cdLeft = _lbCooldownRemaining();
+  if (cdLeft > 0) {
+    status.textContent = `⏳ Wait ${Math.ceil(cdLeft/1000)}s before resubmitting.`;
+    status.className   = 'share-status';
+    return;
+  }
+
   const raw = ($('lb-name').value || '').trim();
   if (!LB_NAME_RE.test(raw)) {
     status.textContent = 'Name must be 1-12 letters / digits / space / _ / -.';
     status.className   = 'share-status err';
+    status.dataset.lbOk = '0';
     return;
   }
   if (!WORKER_URL) {
     status.textContent = 'Leaderboard backend not configured (WORKER_URL is empty).';
     status.className   = 'share-status err';
+    status.dataset.lbOk = '0';
     return;
   }
+
   btn.disabled = true;
+  const _origLabel = btn.textContent;
+  btn.textContent = 'Submitting…';
   status.textContent = 'Submitting…';
   status.className   = 'share-status';
+  status.dataset.lbOk = '0';
   try {
     const r = await fetchWithTimeout(`${WORKER_URL.replace(/\/+$/, '')}/submit`, {
       method:  'POST',
@@ -3421,16 +3485,24 @@ async function onSubmitLeaderboard() {
       const errBody = await safeJson(r);
       throw new Error(errBody && errBody.error || `HTTP ${r.status}`);
     }
-    const { rank, total } = await r.json();
-    /* Persist the name so the next game pre-fills the input. */
+    const body = await r.json();
+    const rank  = (body && (body.rank ?? body.position)) ?? null;
+    const total = (body && body.total) ?? null;
     try { localStorage.setItem('idiom-tetris:last-name', raw); } catch {}
-    status.textContent = `🎉 You're rank #${rank} of ${total}! Click "🏆 Leaderboard" to see.`;
+    /* Build a clear, sticky success line — does not get clobbered by anything else. */
+    const rankTxt = (rank != null) ? ` (rank #${rank}${total ? ` of ${total}` : ''})` : '';
+    status.textContent = `✓ Submitted as ${raw}${rankTxt}. See the leaderboard →`;
     status.className   = 'share-status ok';
+    status.dataset.lbOk = '1';
+    /* Persist the score+cleared so cooldown ties to *this* submission, not just a timer. */
+    _lbSetCooldown();
+    _lbStartCooldownTicker(btn, status);
   } catch (e) {
-    status.textContent = 'Submit failed: ' + (e && e.message ? e.message : e);
+    status.textContent = '✗ Submit failed: ' + (e && e.message ? e.message : e);
     status.className   = 'share-status err';
-  } finally {
+    status.dataset.lbOk = '0';
     btn.disabled = false;
+    btn.textContent = _origLabel;
   }
 }
 
@@ -3950,16 +4022,18 @@ if ('serviceWorker' in navigator) {
   }
 
   async function onShareClick() {
-    /* Side-share flow — silent copy + card download, no system
-       share sheet. The user pastes wherever they want. */
-    if (typeof window.sideShare === 'function') {
-      try { await window.sideShare('play', shareStat); }
+    /* Side-share flow — uses the same shared helper as the
+       game-over modal's Share button so the two are perfectly
+       in sync (system share sheet with the card image, falling
+       back to clipboard + toast). */
+    if (typeof window.shareWithCard === 'function') {
+      try { await window.shareWithCard('idle', shareStat); }
       catch (e) {
         setShareStatus('Share failed: ' + (e && e.message ? e.message : e), 'err');
       }
       return;
     }
-    /* Last-resort fallback if the side-share script failed to load. */
+    /* Last-resort fallback if the share script failed to load. */
     var url = (typeof SHARE_URL !== 'undefined') ? SHARE_URL : location.href;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {

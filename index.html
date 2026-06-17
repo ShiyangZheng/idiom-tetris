@@ -127,7 +127,7 @@
     --noun-shadow: #c98a1a; /* deeper outline for noun cells */
     --text: #e6e8ef;      /* default foreground */
     --text-dim: #9aa0b4;  /* secondary text (hints, sub-labels) */
-    --accent: #c084fc;    /* highlight color (badges) */
+    --accent: #38bdf8;    /* highlight color (badges) — cool teal */
     --clear: #10b981;     /* success color (cleared counter) */
     /* Vertical pixels that the title + subtitle + side HUD consume
      * in each layout mode. fitBoard() subtracts this from the visible
@@ -157,8 +157,11 @@
   }
   h1 {
     margin: 0 0 4px 0;
-    font-size: 24px;
-    letter-spacing: 0.5px;
+    font-size: 22px;
+    font-weight: 300;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text);
   }
   .subtitle { color: var(--text-dim); font-size: 13px; margin-bottom: 12px; }
   .layout {
@@ -286,7 +289,7 @@
   .link-mini:hover {
     color: var(--text);
     border-color: var(--accent);
-    background: rgba(192, 132, 252, 0.06);
+    background: rgba(56, 189, 248, 0.06);
   }
   .link-mini svg { display: block; flex-shrink: 0; }
   .toggle-mini {
@@ -636,7 +639,7 @@
   .lb-list li:nth-child(3) .lb-rank { color: #d97706; }
   /* The local user's row, when matched, is highlighted. */
   .lb-list li.lb-mine {
-    background: rgba(192, 132, 252, 0.10);
+    background: rgba(56, 189, 248, 0.10);
     border-radius: 4px;
   }
   .lb-list .lb-empty {
@@ -669,6 +672,7 @@
     min-width: 320px;
     max-width: 380px;
     padding: 32px 28px 22px;
+    overflow: visible;
     /* The max-width is intentionally narrower than the game-over
      * modal's card so the centered card never overlaps the right
      * HUD's "Meaning" and "Modal" toggles — that overlap would
@@ -714,7 +718,7 @@
   }
   .clear-progress {
     height: 3px;
-    background: rgba(192, 132, 252, 0.18);
+    background: rgba(56, 189, 248, 0.18);
     border-radius: 2px;
     overflow: hidden;
     margin: 14px 0 14px;
@@ -739,9 +743,9 @@
     animation: clearContinuePulse 1.8s ease-out 0.3s 1;
   }
   @keyframes clearContinuePulse {
-    0%   { box-shadow: 0 0 0 0 rgba(192, 132, 252, 0.55); }
-    70%  { box-shadow: 0 0 0 8px rgba(192, 132, 252, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(192, 132, 252, 0); }
+    0%   { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.55); }
+    70%  { box-shadow: 0 0 0 8px rgba(56, 189, 248, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
   }
 
   /* ============================================================
@@ -1028,7 +1032,7 @@
   }
   .share-btn:hover  { background: rgba(255, 255, 255, 0.10); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.35); }
   .share-btn:active { transform: scale(0.92); }
-  .share-btn:focus-visible { outline: 2px solid rgba(168, 85, 247, 0.5); outline-offset: 2px; }
+  .share-btn:focus-visible { outline: 2px solid rgba(56, 189, 248, 0.5); outline-offset: 2px; }
   .share-btn svg { display: block; width: 15px; height: 15px; }
 
   /* Tiny status line right under the share button (auto-hides) */
@@ -1087,7 +1091,7 @@
   }
   .ib-install:hover     { background: rgba(255, 255, 255, 0.10); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.35); }
   .ib-install:active    { transform: scale(0.92); }
-  .ib-install:focus-visible { outline: 2px solid rgba(168, 85, 247, 0.5); outline-offset: 2px; }
+  .ib-install:focus-visible { outline: 2px solid rgba(56, 189, 248, 0.5); outline-offset: 2px; }
   .ib-install svg       { display: block; width: 15px; height: 15px; }
   /* The .hidden utility is the ONLY way the install button is
    *  removed from the layout (see CONTRACT in the install script
@@ -1129,7 +1133,7 @@
   .music-btn.ready   { display: inline-flex; }
   .music-btn:hover   { background: rgba(255, 255, 255, 0.10); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.35); }
   .music-btn:active  { transform: scale(0.92); }
-  .music-btn:focus-visible { outline: 2px solid rgba(168, 85, 247, 0.5); outline-offset: 2px; }
+  .music-btn:focus-visible { outline: 2px solid rgba(56, 189, 248, 0.5); outline-offset: 2px; }
   .music-btn svg     { display: block; width: 15px; height: 15px; }
   /* Muted state: still purple, but dimmed so the off-state reads
    *  as "available, paused" instead of "broken". */
@@ -1222,7 +1226,7 @@
   <audio id="sfx-clear" preload="auto"
          src="audio/pop1.ogg" aria-hidden="true"></audio>
 
-  <h1>🧩 Idiom Tetris</h1>
+  <h1>Idiom Tetris</h1>
   <div class="subtitle">v-det-n · 3 falling words = 1 idiom cleared</div>
 
   <div class="layout">
@@ -3095,7 +3099,7 @@ function restart() {
   /* stat-lines is intentionally absent from the redesigned mini
    * side panel — guard the lookup so restart() doesn't crash. */
   if ($('stat-lines')) $('stat-lines').textContent = '0';
-  $('status').textContent = 'playing';
+  if ($('status')) $('status').textContent = 'playing';
   /* stat-lines is intentionally absent from the redesigned mini
    * side panel — guard the lookup so restart() doesn't crash. */
   if ($('stat-lines')) $('stat-lines').textContent = '0';
@@ -3703,13 +3707,13 @@ if ('serviceWorker' in navigator) {
 
     /* Soft purple radial glow at the top to mirror the in-app feel. */
     var glow = c.createRadialGradient(W/2, 0, 0, W/2, 0, 700);
-    glow.addColorStop(0,   'rgba(168, 85, 247, 0.28)');
-    glow.addColorStop(1,   'rgba(168, 85, 247, 0.00)');
+    glow.addColorStop(0,   'rgba(56, 189, 248, 0.28)');
+    glow.addColorStop(1,   'rgba(56, 189, 248, 0.00)');
     c.fillStyle = glow;
     c.fillRect(0, 0, W, H);
 
     /* Subtle dot grid. */
-    c.fillStyle = 'rgba(192, 132, 252, 0.10)';
+    c.fillStyle = 'rgba(56, 189, 248, 0.10)';
     for (var gx = 36; gx < W; gx += 36) {
       for (var gy = 36; gy < H; gy += 36) {
         c.beginPath();
@@ -3723,7 +3727,7 @@ if ('serviceWorker' in navigator) {
     c.font = '800 96px ' + FONT;
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText('🧩 Idiom Tetris', W/2, 185);
+    c.fillText('Idiom Tetris', W/2, 185);
 
     /* Subtitle — mode-specific. */
     var subtitle;
@@ -3733,7 +3737,7 @@ if ('serviceWorker' in navigator) {
     } else {
       subtitle = "I'm playing right now — can you beat my score?";
     }
-    c.fillStyle = '#c084fc';
+    c.fillStyle = '#38bdf8';
     c.font = '600 38px ' + FONT;
     c.fillText(subtitle, W/2, 280);
 

@@ -525,116 +525,140 @@
   .gameover-modal {
     position: fixed;
     inset: 0;
-    background: rgba(8, 10, 18, 0.78);
+    background: rgba(8, 10, 18, 0.85);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(6px);
   }
   .gameover-modal[hidden] { display: none; }
   .gameover-card {
     background: var(--grid-bg);
     border: 1px solid #2a2e3f;
-    border-radius: 12px;
-    padding: 28px 32px;
+    border-radius: 16px;
+    padding: 24px 28px;
     min-width: 320px;
     max-width: 90vw;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
     text-align: center;
   }
   .gameover-card h2 {
-    margin: 0 0 16px 0;
-    color: var(--accent);
-    font-size: 22px;
-    letter-spacing: 0.5px;
+    margin: 0 0 18px 0;
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
   }
   .final-stats {
     display: flex;
     justify-content: space-around;
-    gap: 24px;
-    margin-bottom: 20px;
+    gap: 32px;
+    margin-bottom: 18px;
   }
   .final-stats > div {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
   .final-stats .lbl {
-    font-size: 11px;
+    font-size: 10px;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 1.2px;
     color: var(--text-dim);
+    font-weight: 500;
   }
   .final-stats .val {
-    font-size: 28px;
+    font-size: 32px;
     font-weight: 700;
-    color: var(--text);
+    color: var(--accent);
     font-variant-numeric: tabular-nums;
+    line-height: 1;
   }
   .modal-actions {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+    margin-bottom: 12px;
   }
   .btn-primary, .btn-secondary, .btn-text {
     border: none;
-    padding: 10px 16px;
-    border-radius: 6px;
+    padding: 12px 16px;
+    border-radius: 8px;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
     width: 100%;
+    transition: all 0.2s;
   }
-  .btn-primary { background: var(--accent); color: #1a1d2b; }
-  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0d18;
+    box-shadow: 0 2px 8px rgba(56, 189, 248, 0.3);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #4db5f7;
+    box-shadow: 0 4px 12px rgba(56, 189, 248, 0.4);
+    transform: translateY(-1px);
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
   .btn-secondary {
-    background: #1a1d2b;
+    background: transparent;
     color: var(--text);
     border: 1px solid #2a2e3f;
   }
-  .btn-secondary:hover { border-color: var(--accent); }
+  .btn-secondary:hover {
+    border-color: var(--accent);
+    background: rgba(56, 189, 248, 0.05);
+  }
   .btn-text {
     background: transparent;
     color: var(--text-dim);
     font-weight: 400;
+    padding: 8px 16px;
   }
   .btn-text:hover { color: var(--text); }
   .share-status {
-    margin-top: 8px;
-    min-height: 18px;
-    font-size: 12px;
+    min-height: 20px;
+    font-size: 13px;
     color: var(--text-dim);
+    margin-top: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
   }
-  .share-status.ok { color: var(--clear); }
+  .share-status.show {
+    opacity: 1;
+  }
+  .share-status.ok { color: var(--accent); }
   .share-status.err { color: #ef4444; }
 
   /* ---------- Name input row (game-over modal) ---------- */
   .name-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 4px 0 16px 0;
+    margin-bottom: 16px;
   }
   .name-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    display: block;
+    font-size: 12px;
     color: var(--text-dim);
-    flex: 0 0 auto;
+    margin-bottom: 6px;
+    text-align: left;
+    font-weight: 500;
   }
   .name-input {
-    flex: 1 1 auto;
+    width: 100%;
+    padding: 10px 12px;
     background: #1a1d2b;
     border: 1px solid #2a2e3f;
-    border-radius: 6px;
-    padding: 8px 10px;
+    border-radius: 8px;
     color: var(--text);
-    font-family: inherit;
     font-size: 14px;
-    font-weight: 600;
+    font-family: inherit;
     outline: none;
+    transition: border-color 0.2s;
   }
   .name-input:focus { border-color: var(--accent); }
   .name-input::placeholder { color: var(--text-dim); font-weight: 400; }
@@ -1429,7 +1453,7 @@
        ============================================================ -->
   <div id="gameover-modal" class="gameover-modal" hidden>
     <div class="gameover-card">
-      <h2>Game over</h2>
+      <h2>Game Over</h2>
       <div class="final-stats">
         <div><span class="lbl">Score</span><span class="val" id="final-score">0</span></div>
         <div><span class="lbl">Cleared</span><span class="val" id="final-cleared">0</span></div>
@@ -1437,7 +1461,7 @@
       <div class="name-row">
         <label for="lb-name" class="name-label">Your name</label>
         <input id="lb-name" class="name-input" type="text" maxlength="12"
-               autocomplete="off" spellcheck="false" placeholder="e.g. shiyang">
+               autocomplete="off" spellcheck="false" placeholder="Enter your name">
       </div>
       <div class="modal-actions">
         <button id="btn-submit-lb" class="btn-primary">Submit to leaderboard</button>
@@ -3451,29 +3475,33 @@ async function onSubmitLeaderboard() {
   const cdLeft = _lbCooldownRemaining();
   if (cdLeft > 0) {
     status.textContent = `⏳ Wait ${Math.ceil(cdLeft/1000)}s before resubmitting.`;
-    status.className   = 'share-status';
+    status.className   = 'share-status show';
     return;
   }
 
   const raw = ($('lb-name').value || '').trim();
   if (!LB_NAME_RE.test(raw)) {
     status.textContent = 'Name must be 1-12 letters / digits / space / _ / -.';
-    status.className   = 'share-status err';
+    status.className   = 'share-status show err';
     status.dataset.lbOk = '0';
     return;
   }
   if (!WORKER_URL) {
     status.textContent = 'Leaderboard backend not configured (WORKER_URL is empty).';
-    status.className   = 'share-status err';
+    status.className   = 'share-status show err';
     status.dataset.lbOk = '0';
     return;
   }
 
+  /* Disable button immediately and surface a "Submitting..." state
+   * so the user gets instant feedback (before the network even
+   * resolves). The cooldown ticker re-enables the button when the
+   * 30s window is up, so we don't restore it here on success. */
   btn.disabled = true;
   const _origLabel = btn.textContent;
   btn.textContent = 'Submitting…';
-  status.textContent = 'Submitting…';
-  status.className   = 'share-status';
+  status.textContent = '⏳ Submitting…';
+  status.className   = 'share-status show';
   status.dataset.lbOk = '0';
   try {
     const r = await fetchWithTimeout(`${WORKER_URL.replace(/\/+$/, '')}/submit`, {
@@ -3490,16 +3518,19 @@ async function onSubmitLeaderboard() {
     const total = (body && body.total) ?? null;
     try { localStorage.setItem('idiom-tetris:last-name', raw); } catch {}
     /* Build a clear, sticky success line — does not get clobbered by anything else. */
-    const rankTxt = (rank != null) ? ` (rank #${rank}${total ? ` of ${total}` : ''})` : '';
-    status.textContent = `✓ Submitted as ${raw}${rankTxt}. See the leaderboard →`;
-    status.className   = 'share-status ok';
+    const rankTxt = (rank != null) ? ` — Rank #${rank}${total ? ` of ${total}` : ''}` : '';
+    status.textContent = `✓ Submitted as "${raw}"${rankTxt}`;
+    status.className   = 'share-status show ok';
     status.dataset.lbOk = '1';
     /* Persist the score+cleared so cooldown ties to *this* submission, not just a timer. */
     _lbSetCooldown();
     _lbStartCooldownTicker(btn, status);
   } catch (e) {
+    /* On error, restore the button so the user can retry without
+     * waiting out the cooldown. The success path deliberately does
+     * NOT re-enable here — _lbStartCooldownTicker owns that. */
     status.textContent = '✗ Submit failed: ' + (e && e.message ? e.message : e);
-    status.className   = 'share-status err';
+    status.className   = 'share-status show err';
     status.dataset.lbOk = '0';
     btn.disabled = false;
     btn.textContent = _origLabel;

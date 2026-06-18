@@ -2,7 +2,8 @@
 
 > **A single-file HTML5 game for psycholinguistics research on English
 > verb–determiner–noun idiom acquisition. Play it now:
-> <https://shiyangzheng.github.io/idiom-tetris/>**
+>  <https://shiyang-zheng.itch.io/idiom-tetris>
+  ([embed preview](https://shiyangzheng.github.io/idiom-tetris/itch.html))**
 
 Each falling block is one English word tagged with its part of speech
 (verb / determiner / noun). When three blocks line up in the canonical
@@ -12,9 +13,7 @@ flash on screen.
 
 - **Pool size**: 611 idioms, 241 verbs, 6 determiners, 442 nouns
 - **No build step required to play** — just open `index.html`
-- **Also on itch.io**: <https://shiyang-zheng.itch.io/idiom-tetris>
-  ([embed preview](https://shiyangzheng.github.io/idiom-tetris/itch.html))
-
+- **Ongoing developmental version:** https://shiyangzheng.github.io/idiom-tetris/
 
 ---
 

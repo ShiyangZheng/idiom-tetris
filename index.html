@@ -4644,7 +4644,11 @@ if ('serviceWorker' in navigator) {
              score: s, cleared: c };
   };
 
-  /* Render the share card to a 1200x630 canvas, return as PNG blob. */
+  /* Render the share card to a 1200x630 canvas, return as PNG blob.
+     Layout: left = title + tagline + small V/D/N block trio + URL footer;
+             right = QR code on a clean white card with a one-line caption.
+     Palette mirrors the in-app theme (--bg / --text / --accent / --text-dim)
+     with no gradient, glow, or dot grid — keeps it minimal, not "AI-flavored". */
   window.renderShareCard = function (payload) {
     var W = 1200, H = 630;
     var canvas = document.createElement('canvas');
@@ -4653,106 +4657,127 @@ if ('serviceWorker' in navigator) {
     var c = canvas.getContext('2d');
     var FONT = '-apple-system, "Helvetica Neue", "Segoe UI", system-ui, sans-serif';
 
-    function rr(x, y, w, h, r) {
-      if (c.roundRect) { c.beginPath(); c.roundRect(x, y, w, h, r); }
-      else {
-        c.beginPath();
-        c.moveTo(x + r, y);
-        c.arcTo(x + w, y,     x + w, y + h, r);
-        c.arcTo(x + w, y + h, x,     y + h, r);
-        c.arcTo(x,     y + h, x,     y,     r);
-        c.arcTo(x,     y,     x + w, y,     r);
-        c.closePath();
-      }
-    }
-
-    /* Background — same palette as the app shell. */
-    var bg = c.createLinearGradient(0, 0, W, H);
-    bg.addColorStop(0,    '#0a0e1a');
-    bg.addColorStop(0.55, '#16102a');
-    bg.addColorStop(1,    '#241a3d');
-    c.fillStyle = bg;
+    /* Solid background — matches the in-app --bg. */
+    c.fillStyle = '#0f1117';
     c.fillRect(0, 0, W, H);
 
-    /* Soft purple radial glow at the top to mirror the in-app feel. */
-    var glow = c.createRadialGradient(W/2, 0, 0, W/2, 0, 700);
-    glow.addColorStop(0,   'rgba(56, 189, 248, 0.28)');
-    glow.addColorStop(1,   'rgba(56, 189, 248, 0.00)');
-    c.fillStyle = glow;
-    c.fillRect(0, 0, W, H);
+    /* Subtle 1px divider between text and QR columns. */
+    c.fillStyle = '#262c3c';
+    c.fillRect(W * 0.62, 110, 1, H - 220);
 
-    /* Subtle dot grid. */
-    c.fillStyle = 'rgba(56, 189, 248, 0.10)';
-    for (var gx = 36; gx < W; gx += 36) {
-      for (var gy = 36; gy < H; gy += 36) {
-        c.beginPath();
-        c.arc(gx, gy, 1.4, 0, Math.PI * 2);
-        c.fill();
-      }
-    }
+    /* --- Left column: title + tagline + blocks + URL --- */
+    var leftX = 80;
+
+    /* Eyebrow label, like the app's "MINI-LABEL" uppercase. */
+    c.fillStyle = '#9aa0b4';
+    c.font = '600 22px ' + FONT;
+    c.textAlign = 'left';
+    c.textBaseline = 'alphabetic';
+    c.fillText('ENGLISH IDIOM PUZZLE', leftX, 145);
 
     /* Title. */
     c.fillStyle = '#f8fafc';
     c.font = '800 96px ' + FONT;
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    c.fillText('Idiom Tetris', W/2, 185);
+    c.fillText('Idiom Tetris', leftX, 240);
 
-    /* Subtitle — mode-specific. */
-    var subtitle;
+    /* Mode-specific tagline — one line, with the score in teal accent. */
+    c.font = '500 32px ' + FONT;
+    c.textBaseline = 'alphabetic';
     if (payload.mode === 'gameover') {
-      subtitle = 'I scored ' + (payload.score|0).toLocaleString() +
-                 ' — ' + payload.cleared + ' idioms cleared!';
+      c.fillStyle = '#9aa0b4';
+      c.fillText('I scored ', leftX, 305);
+      var w1 = c.measureText('I scored ').width;
+      c.fillStyle = '#38bdf8';
+      c.fillText((payload.score|0).toLocaleString(), leftX + w1, 305);
+      var w2 = c.measureText((payload.score|0).toLocaleString()).width;
+      c.fillStyle = '#9aa0b4';
+      c.fillText(' — ' + payload.cleared + ' idioms cleared.',
+                 leftX + w1 + w2, 305);
     } else {
-      subtitle = "I'm playing right now — can you beat my score?";
+      c.fillStyle = '#9aa0b4';
+      c.fillText("I'm playing right now — can you beat my score?",
+                 leftX, 305);
     }
-    c.fillStyle = '#38bdf8';
-    c.font = '600 38px ' + FONT;
-    c.fillText(subtitle, W/2, 280);
 
-    /* Three colored blocks (V / det / N — the three block types). */
+    /* Three small V/D/N blocks — in-app palette, no drop shadow. */
     var blockY     = 380;
-    var blockSize  = 92;
-    var blockGap   = 28;
+    var blockSize  = 72;
+    var blockGap   = 20;
     var labels = ['V', 'det', 'N'];
-    var bgs    = ['#f472b6', '#22d3ee', '#facc15'];
-    var bdrs   = ['#be185d', '#0e7490', '#a16207'];
-    var totalW = blockSize * 3 + blockGap * 2;
-    var startX = (W - totalW) / 2;
+    var bgs    = ['#ff7eb3', '#3fc9c0', '#ffc94d'];
+    var bdrs   = ['#c94a85', '#1f8a83', '#c98a1a'];
     for (var i = 0; i < 3; i++) {
-      var bx = startX + i * (blockSize + blockGap);
-      var by = blockY;
-
-      /* Drop shadow. */
-      c.save();
-      c.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      rr(bx + 4, by + 12, blockSize, blockSize, 16);
-      c.fill();
-      c.restore();
-
-      /* Block face. */
+      var bx = leftX + i * (blockSize + blockGap);
       c.fillStyle = bgs[i];
-      rr(bx, by, blockSize, blockSize, 16);
+      c.beginPath();
+      c.roundRect(bx, blockY, blockSize, blockSize, 10);
       c.fill();
-
       c.strokeStyle = bdrs[i];
-      c.lineWidth = 3;
+      c.lineWidth = 2;
       c.stroke();
-
-      /* Label. */
-      c.fillStyle = '#0a0e1a';
-      c.font = '800 ' + (labels[i].length > 1 ? 32 : 44) + 'px ' + FONT;
+      c.fillStyle = '#0f1117';
+      c.font = '800 ' + (labels[i].length > 1 ? 26 : 34) + 'px ' + FONT;
       c.textAlign = 'center';
       c.textBaseline = 'middle';
-      c.fillText(labels[i], bx + blockSize/2, by + blockSize/2);
+      c.fillText(labels[i], bx + blockSize/2, blockY + blockSize/2);
     }
 
     /* URL footer. */
-    c.fillStyle = 'rgba(248, 250, 252, 0.75)';
-    c.font = '500 28px ' + FONT;
+    c.fillStyle = '#9aa0b4';
+    c.font = '500 26px ' + FONT;
+    c.textAlign = 'left';
+    c.textBaseline = 'alphabetic';
+    c.fillText(payload.url, leftX, 525);
+
+    /* --- Right column: QR code on a clean white card --- */
+    var qrPanelX = Math.round(W * 0.62) + 60;  // = 789
+    var qrPanelW = 1200 - qrPanelX - 80;       // = 331
+    var qrPanelY = 110;
+    var qrPanelH = H - 220;
+
+    /* White QR card with a soft 1px border to read on the dark background. */
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.roundRect(qrPanelX, qrPanelY, qrPanelW, qrPanelH, 12);
+    c.fill();
+    c.strokeStyle = '#262c3c';
+    c.lineWidth = 1;
+    c.stroke();
+
+    /* Draw QR if preloaded; otherwise render a fallback placeholder so
+       the function still produces a valid PNG (rare — first call only).
+       QR + caption must fit inside qrPanelY..qrPanelY+qrPanelH. */
+    var qrImg = window.__shareCardQR || null;
+    var qrSize = 220;
+    var captionH = 28;            // "Scan to play"
+    var subCapH  = 22;            // URL line
+    var capGap   = 18;
+    var qrX = Math.round(qrPanelX + (qrPanelW - qrSize) / 2);
+    var qrY = Math.round(qrPanelY + (qrPanelH - qrSize - captionH - subCapH - capGap) / 2);
+    if (qrImg && qrImg.complete && qrImg.naturalWidth > 0) {
+      c.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+    } else {
+      c.fillStyle = '#f1f5f9';
+      c.fillRect(qrX, qrY, qrSize, qrSize);
+      c.fillStyle = '#94a3b8';
+      c.font = '500 16px ' + FONT;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('Loading QR…', qrX + qrSize/2, qrY + qrSize/2);
+    }
+
+    /* Caption under the QR — bold, dark, centered. */
+    c.fillStyle = '#0f1117';
+    c.font = '600 24px ' + FONT;
     c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    c.fillText(payload.url, W/2, 555);
+    c.textBaseline = 'top';
+    c.fillText('Scan to play', qrPanelX + qrPanelW/2, qrY + qrSize + capGap);
+
+    /* Tiny credit line — dimmer. */
+    c.fillStyle = '#9aa0b4';
+    c.font = '500 14px ' + FONT;
+    c.fillText('Scan with your phone camera',
+               qrPanelX + qrPanelW/2, qrY + qrSize + capGap + captionH);
 
     return new Promise(function (resolve, reject) {
       try {
@@ -4763,6 +4788,18 @@ if ('serviceWorker' in navigator) {
       } catch (e) { reject(e); }
     });
   };
+
+  /* Preload the QR code image once so the first share doesn't render
+     an empty placeholder. Resolves immediately if the image is already
+     cached by the browser. */
+  (function preloadShareQR() {
+    var img = new Image();
+    img.decoding = 'async';
+    img.onload  = function () { window.__shareCardQR = img; };
+    img.onerror = function () { window.__shareCardQR = null; };
+    img.src = 'qr-code.png';
+    window.__shareCardQR = img.complete && img.naturalWidth > 0 ? img : null;
+  })();
 
   /* Run the full share flow for a given mode. statusEl is the small
      status line under the share button. Falls back gracefully if

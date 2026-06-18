@@ -1,9 +1,11 @@
 # 🧩 Idiom Tetris — V-det-N
 
-> **A single-file HTML5 game for psycholinguistics research on English
-> verb–determiner–noun idiom acquisition. Play it now:
->  <https://shiyang-zheng.itch.io/idiom-tetris>
-  ([embed preview](https://shiyangzheng.github.io/idiom-tetris/itch.html))**
+> A single-file HTML5 game for psycholinguistics research on English
+> verb–determiner–noun idiom acquisition.
+---
+**Play it now:**
+
+[![Play on itch.io](https://img.shields.io/badge/Play-itch.io-FA5C5C?logo=itch.io)](https://shiyang-zheng.itch.io/idiom-tetris)
 
 Each falling block is one English word tagged with its part of speech
 (verb / determiner / noun). When three blocks line up in the canonical

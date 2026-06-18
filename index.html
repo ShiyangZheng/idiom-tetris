@@ -4661,11 +4661,9 @@ if ('serviceWorker' in navigator) {
     c.fillStyle = '#0f1117';
     c.fillRect(0, 0, W, H);
 
-    /* Subtle 1px divider between text and QR columns. */
-    c.fillStyle = '#262c3c';
-    c.fillRect(W * 0.62, 110, 1, H - 220);
-
-    /* --- Left column: title + tagline + blocks + URL --- */
+    /* --- Single-column layout: eyebrow + title + tagline + blocks + URL.
+       No divider, no right column. QR sits alone in the bottom-right
+       corner so the left text gets the full 1200-wide canvas. --- */
     var leftX = 80;
 
     /* Eyebrow label, like the app's "MINI-LABEL" uppercase. */
@@ -4680,23 +4678,24 @@ if ('serviceWorker' in navigator) {
     c.font = '800 96px ' + FONT;
     c.fillText('Idiom Tetris', leftX, 240);
 
-    /* Mode-specific tagline — one line, with the score in teal accent. */
+    /* Mode-specific tagline — short, one line, score in teal accent.
+       Strings stay short on purpose so they don't run into the QR
+       sitting at the bottom-right corner. */
     c.font = '500 32px ' + FONT;
     c.textBaseline = 'alphabetic';
     if (payload.mode === 'gameover') {
       c.fillStyle = '#9aa0b4';
-      c.fillText('I scored ', leftX, 305);
-      var w1 = c.measureText('I scored ').width;
+      c.fillText('Score ', leftX, 305);
+      var w1 = c.measureText('Score ').width;
       c.fillStyle = '#38bdf8';
       c.fillText((payload.score|0).toLocaleString(), leftX + w1, 305);
       var w2 = c.measureText((payload.score|0).toLocaleString()).width;
       c.fillStyle = '#9aa0b4';
-      c.fillText(' — ' + payload.cleared + ' idioms cleared.',
+      c.fillText(' · ' + payload.cleared + ' cleared',
                  leftX + w1 + w2, 305);
     } else {
       c.fillStyle = '#9aa0b4';
-      c.fillText("I'm playing right now — can you beat my score?",
-                 leftX, 305);
+      c.fillText('Can you beat my score?', leftX, 305);
     }
 
     /* Three small V/D/N blocks — in-app palette, no drop shadow. */
@@ -4729,55 +4728,35 @@ if ('serviceWorker' in navigator) {
     c.textBaseline = 'alphabetic';
     c.fillText(payload.url, leftX, 525);
 
-    /* --- Right column: QR code on a clean white card --- */
-    var qrPanelX = Math.round(W * 0.62) + 60;  // = 789
-    var qrPanelW = 1200 - qrPanelX - 80;       // = 331
-    var qrPanelY = 110;
-    var qrPanelH = H - 220;
+    /* --- Corner QR: compact white tile with the code inside, no caption.
+       A scanner needs a white quiet-zone around the modules, so we wrap
+       the raw QR PNG in a small white square instead of drawing it raw
+       on the dark background. Sized small enough to leave the left
+       text column dominant. --- */
+    var qrImg  = window.__shareCardQR || null;
+    var qrSize = 140;          // visible QR inside the tile
+    var pad    = 10;           // quiet-zone inside the tile
+    var tile   = qrSize + pad * 2;
+    var tileX  = W - 80 - tile;
+    var tileY  = H - 80 - tile;
 
-    /* White QR card with a soft 1px border to read on the dark background. */
     c.fillStyle = '#ffffff';
     c.beginPath();
-    c.roundRect(qrPanelX, qrPanelY, qrPanelW, qrPanelH, 12);
+    c.roundRect(tileX, tileY, tile, tile, 8);
     c.fill();
-    c.strokeStyle = '#262c3c';
-    c.lineWidth = 1;
-    c.stroke();
 
-    /* Draw QR if preloaded; otherwise render a fallback placeholder so
-       the function still produces a valid PNG (rare — first call only).
-       QR + caption must fit inside qrPanelY..qrPanelY+qrPanelH. */
-    var qrImg = window.__shareCardQR || null;
-    var qrSize = 220;
-    var captionH = 28;            // "Scan to play"
-    var subCapH  = 22;            // URL line
-    var capGap   = 18;
-    var qrX = Math.round(qrPanelX + (qrPanelW - qrSize) / 2);
-    var qrY = Math.round(qrPanelY + (qrPanelH - qrSize - captionH - subCapH - capGap) / 2);
     if (qrImg && qrImg.complete && qrImg.naturalWidth > 0) {
-      c.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+      c.drawImage(qrImg, tileX + pad, tileY + pad, qrSize, qrSize);
     } else {
+      /* Fallback placeholder — first-call race only; preload() usually wins. */
       c.fillStyle = '#f1f5f9';
-      c.fillRect(qrX, qrY, qrSize, qrSize);
+      c.fillRect(tileX + pad, tileY + pad, qrSize, qrSize);
       c.fillStyle = '#94a3b8';
-      c.font = '500 16px ' + FONT;
+      c.font = '500 12px ' + FONT;
       c.textAlign = 'center';
       c.textBaseline = 'middle';
-      c.fillText('Loading QR…', qrX + qrSize/2, qrY + qrSize/2);
+      c.fillText('Loading QR', tileX + tile/2, tileY + tile/2);
     }
-
-    /* Caption under the QR — bold, dark, centered. */
-    c.fillStyle = '#0f1117';
-    c.font = '600 24px ' + FONT;
-    c.textAlign = 'center';
-    c.textBaseline = 'top';
-    c.fillText('Scan to play', qrPanelX + qrPanelW/2, qrY + qrSize + capGap);
-
-    /* Tiny credit line — dimmer. */
-    c.fillStyle = '#9aa0b4';
-    c.font = '500 14px ' + FONT;
-    c.fillText('Scan with your phone camera',
-               qrPanelX + qrPanelW/2, qrY + qrSize + capGap + captionH);
 
     return new Promise(function (resolve, reject) {
       try {

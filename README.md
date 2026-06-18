@@ -12,7 +12,6 @@ flash on screen.
 
 - **Pool size**: 611 idioms, 241 verbs, 6 determiners, 442 nouns
 - **No build step required to play** — just open `index.html`
-- **Live demo**: <https://shiyangzheng.github.io/idiom-tetris/>
 - **Also on itch.io**: <https://shiyang-zheng.itch.io/idiom-tetris>
   ([embed preview](https://shiyangzheng.github.io/idiom-tetris/itch.html))
 

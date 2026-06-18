@@ -16,11 +16,6 @@ flash on screen.
 - **Also on itch.io**: <https://shiyang-zheng.itch.io/idiom-tetris>
   ([embed preview](https://shiyangzheng.github.io/idiom-tetris/itch.html))
 
-<p>
-  <a href="https://shiyang-zheng.itch.io/idiom-tetris">
-    <img alt="Play Idiom Tetris on itch.io" src="https://img.itch.io/badge.svg?text=Play%20on%20itch.io&color=4fc3f7&dark=true">
-  </a>
-</p>
 
 ---
 

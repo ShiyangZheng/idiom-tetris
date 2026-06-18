@@ -17,6 +17,9 @@ flash on screen.
 - **No build step required to play** — just open `index.html`
 - **Ongoing developmental version:** https://shiyangzheng.github.io/idiom-tetris/
 
+This game is also associated with a potential [pre-registered project](https://osf.io/2m4sy), interested collaborators
+are welcomed to reach out:)
+
 ---
 
 ## ▶️ Play

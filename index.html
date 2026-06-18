@@ -4160,22 +4160,17 @@ function onGameOver() {
 }
 
 /* ---------- Share ----------
- * Hand a text+url payload to the OS share sheet via
- * navigator.share(). The system share sheet on iOS / macOS /
- * Android automatically lists every installed app that accepts
- * the share extension — WeChat, X (Twitter), Instagram, LinkedIn,
- * Messages, Mail, etc. — so we don't need to wire up each
- * platform individually.
+ * Generate a 1200×630 share card PNG (with the player's final
+ * score and idioms-cleared count baked into the image) and
+ * trigger a direct download. The share text is also staged in
+ * the clipboard as a safety net, so the user can paste a
+ * captioned message anywhere without having to retype it.
  *
- * We no longer render a screenshot. The text is the share: it
- * states the player's score and cleared count, and invites the
- * recipient to try the game via the link. (See worker/ in this
- * repo for the optional leaderboard side of the story.)
- *
- * Fallbacks:
- *   1. navigator.share     — text+url via the system share sheet
- *   2. copy-to-clipboard   — older desktop browsers without any
- *                            share-sheet support
+ * No system share sheet — that flow was removed in an earlier
+ * iteration and the user reported it as friction (extra tap to
+ * dismiss the sheet on desktop, no clear feedback on mobile).
+ * Direct download keeps the share card as a tangible file the
+ * user can attach to any chat / email / social app themselves.
  */
 async function onShare(e) {
   if (e && typeof e.preventDefault === 'function') {
@@ -4186,33 +4181,28 @@ async function onShare(e) {
   if (btn.disabled) return;
   btn.disabled = true;
   try {
-    /* Delegate to the shared flow — same card image + same text
-       payload as the left-side Share button. The status slot is
-       the one inside this modal so the toast doesn't get
-       clipped by other modals. */
-    if (typeof window.shareWithCard === 'function') {
-      await window.shareWithCard('gameover', $('share-status'));
+    /* Same generate + download flow as the left-side Share
+       button — the only thing that changes is the status slot
+       (this modal's, so the toast doesn't get clipped by
+       other modals). */
+    if (typeof window.sideShare === 'function') {
+      await window.sideShare('gameover', $('share-status'));
     } else {
-      /* Last-resort fallback if the card script failed to load. */
+      /* Last-resort fallback if the share script failed to load:
+         just copy the text. */
       const shareText =
         `I scored ${score.toLocaleString()} in Idiom Tetris ` +
         `(${cleared} idioms cleared) — think you can beat me?\n` +
         `Play free: ${SHARE_URL}`;
-      if (navigator.share) {
-        await navigator.share({ title: 'Idiom Tetris', text: shareText, url: SHARE_URL });
-      } else {
-        await copyToClipboard(shareText);
-      }
+      await copyToClipboard(shareText);
+      const status = $('share-status');
+      status.textContent = 'Link copied ✓';
+      status.className   = 'share-status show ok';
     }
   } catch (e) {
     const status = $('share-status');
-    if (e && (e.name === 'AbortError' || /cancel/i.test(e.message || ''))) {
-      status.textContent = 'Share canceled.';
-      status.className   = 'share-status';
-    } else {
-      status.textContent = '✗ Share failed: ' + (e && e.message ? e.message : e);
-      status.className   = 'share-status err';
-    }
+    status.textContent = '✗ Share failed: ' + (e && e.message ? e.message : e);
+    status.className   = 'share-status err';
   } finally {
     btn.disabled = false;
   }
@@ -4535,18 +4525,24 @@ if ('serviceWorker' in navigator) {
          does not reappear on every visit after a single dismiss.
      ============================================================ -->
 <!-- ============================================================
-     SHARE CARD RENDERER
-     Generates a 1200x630 PNG (Open Graph card aspect) used as
-     the `files` payload of navigator.share() for BOTH the
-     left-side Share button and the game-over modal Share button.
-     Both flows call window.shareWithCard(mode) which:
+     SHARE CARD RENDERER + DIRECT DOWNLOAD
+     Generates a 1200x630 PNG (Open Graph card aspect) with the
+     final score and idioms-cleared count baked into the image.
+     Both share entry points — the left-side Share button and
+     the game-over modal's Share button — call window.sideShare
+     which:
        1. Renders the canvas card image (off-screen, ~150-300KB).
        2. Copies the share text to the clipboard (safety net).
-       3. Calls navigator.share with files=[card] + text+url.
-       4. Falls back to text-only share, then to clipboard +
-          card-as-download, then to text-only clipboard.
-     Decoupled from any DOM so both share buttons can call it
-     without duplicating logic.
+       3. Triggers a direct download of the card PNG to the
+          user's device (laptop / phone Downloads folder).
+     No system share sheet — direct download is the primary
+     action because the OS share sheet is friction on desktop
+     (extra tap to dismiss) and opaque on mobile (the user
+     does not see what the file did after dismissing). With a
+     direct download the card is a tangible file the user can
+     attach to any chat / email / social app themselves.
+     Decoupled from any DOM so both share buttons call the
+     same helper without duplicating logic.
      ============================================================ -->
 <script>
 (function () {
@@ -4879,10 +4875,11 @@ if ('serviceWorker' in navigator) {
   async function onShareClick() {
     /* Side-share flow — uses the same shared helper as the
        game-over modal's Share button so the two are perfectly
-       in sync (system share sheet with the card image, falling
-       back to clipboard + toast). */
-    if (typeof window.shareWithCard === 'function') {
-      try { await window.shareWithCard('idle', shareStat); }
+       in sync (one click → render the share card PNG → download
+       it directly to the user's device, with the share text
+       also staged in the clipboard). */
+    if (typeof window.sideShare === 'function') {
+      try { await window.sideShare('idle', shareStat); }
       catch (e) {
         setShareStatus('Share failed: ' + (e && e.message ? e.message : e), 'err');
       }

@@ -1006,11 +1006,98 @@
     }
     body.touch-mode .side-col.right { display: none; }
     body.touch-mode .side-col.left {
+      display: none;     /* MOBILE: full left column hidden, the
+                            slim horizontal .hud-stats-row above
+                            the board takes over */
+    }
+  }
+
+  /* ============================================================
+   *  MOBILE — slim horizontal stats row (Next / Cleared / Score)
+   *  The full left column (with the 3 action buttons + size
+   *  slider) is a lot of vertical space on a phone. We hide
+   *  everything on mobile EXCEPT the 3 stat blocks, then re-
+   *  flow them as a single horizontal row above the board.
+   *  Share / Install / Music are now in the hamburger drawer;
+   *  the size slider is also in the drawer.
+   *  Pure addendum — desktop rules unchanged.
+   *  ============================================================ */
+  .hud-stats-row {
+    display: none;   /* hidden on desktop */
+  }
+  @media (max-width: 600px) {
+    body.touch-mode .side-col.left .mini-stat:not(:first-child):not(:nth-child(2)):not(:nth-child(3)) {
+      display: none;  /* hide the 3 action buttons + size slider on mobile */
+    }
+    body.touch-mode .hud-stats-row {
+      display: flex;
       flex-direction: row;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 14px;
+      justify-content: space-around;
+      align-items: center;
       width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      gap: 8px;
+      padding: 0 4px;
+    }
+    body.touch-mode .hud-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      flex: 1 1 0;
+    }
+    body.touch-mode .hud-stat-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+    body.touch-mode .hud-stat-val {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    body.touch-mode .hud-stat canvas {
+      width: 64px;   /* slightly smaller than the desktop 96x48 to fit in row */
+      height: 32px;
+    }
+  }
+  @media (max-width: 360px) {
+    body.touch-mode .hud-stat-val { font-size: 16px; }
+    body.touch-mode .hud-stat canvas { width: 56px; height: 28px; }
+  }
+
+  /* ============================================================
+   *  MOBILE — HUD typography + touch target parity
+   *  The three small icon buttons (Share, Install, Leaderboard) and
+   *  the mini stat blocks (Score, Cleared) sit between the title
+   *  and the board on touch-mode. On a 390px viewport they were
+   *  inheriting desktop rules (32px button, 0px vertical padding on
+   *  stats) — readable but visually thin and easy to mis-tap. We
+   *  bump them to the same standards the game-over modal already
+   *  uses on mobile (44px touch target + a touch of breathing room
+   *  between label and value), so the whole experience feels like
+   *  one consistent product rather than two layouts glued together.
+   *  Pure addendum — doesn't touch desktop rules. */
+  @media (max-width: 600px) {
+    body.touch-mode .restart-mini.icon-btn {
+      min-width: 44px;          /* Apple HIG / WCAG 2.5.5 min target */
+      min-height: 44px;
+      padding: 10px;            /* was 7px — gives the SVG more room too */
+    }
+    body.touch-mode .restart-mini.icon-btn svg {
+      width: 20px;              /* was 16px — matches the larger button */
+      height: 20px;
+    }
+    body.touch-mode .mini-val {
+      margin-top: 2px;          /* was 0 — tightens up label→number */
+    }
+    body.touch-mode .mini-label {
+      letter-spacing: 1.2px;    /* was 1px — slightly more presence */
     }
   }
 
@@ -1158,6 +1245,234 @@
     .btn-primary, .btn-secondary { padding: 9px 12px; font-size: 13px; }
     .btn-text { padding: 6px 12px; font-size: 12px; }
     .share-status { font-size: 11px; min-height: 14px; }
+  }
+
+  /* ============================================================
+   *  MOBILE — Side-drawer (the "More options" hamburger menu)
+   *  The right column's controls (Types legend, Controls, EN/中,
+   *  pause duration, Install/Share/Music/Leaderboard) used to be
+   *  just dropped on mobile (display:none). They need to be
+   *  reachable somewhere — moving them into a slide-in side
+   *  drawer keeps the board area clear while still giving the
+   *  user one-tap access to every secondary control.
+   *
+   *  The trigger is #side-drawer-toggle, a 44px round button
+   *  pinned to the top-right of the board area. Tap it → the
+   *  .side-drawer slides in from the right with a backdrop; tap
+   *  the backdrop or the × to close. The drawer is implemented
+   *  with a CSS class .open toggled by JS (10 lines), and the
+   *  [hidden] attribute handles initial visibility on desktop.
+   *  ============================================================ */
+  .side-drawer-toggle {
+    display: none;            /* hidden on desktop by default */
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+    align-items: center;
+    justify-content: center;
+    z-index: 950;             /* below the modals (1000) but above the board */
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .side-drawer-toggle:active { transform: scale(0.92); }
+  .side-drawer-toggle:hover  { background: rgba(15, 23, 42, 0.95); }
+  .side-drawer-toggle svg { width: 22px; height: 22px; display: block; }
+
+  .side-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;            /* above the gameover modals (1000) */
+    pointer-events: none;
+  }
+  .side-drawer.open { pointer-events: auto; }
+
+  .side-drawer-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(8, 10, 18, 0.55);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .side-drawer.open .side-drawer-backdrop { opacity: 1; }
+
+  .side-drawer-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(320px, 86vw);
+    background: rgba(11, 15, 26, 0.97);
+    border-left: 1px solid rgba(148, 163, 184, 0.18);
+    box-shadow: -12px 0 40px rgba(0, 0, 0, 0.5);
+    padding: 22px 20px 24px;
+    padding-top: max(22px, env(safe-area-inset-top));
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transform: translateX(100%);
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    text-align: left;
+  }
+  .side-drawer.open .side-drawer-panel { transform: translateX(0); }
+
+  .side-drawer-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(148, 163, 184, 0.30);
+    margin: 0 auto 14px;
+  }
+  .side-drawer-close {
+    position: absolute;
+    top: max(10px, env(safe-area-inset-top));
+    right: 12px;
+    background: transparent;
+    border: 0;
+    color: var(--text-dim);
+    font-size: 26px;
+    line-height: 1;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .side-drawer-close:active { color: var(--text); background: rgba(255,255,255,0.06); }
+
+  .side-drawer-title {
+    margin: 0 0 14px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.3px;
+  }
+  .side-drawer-section {
+    margin-bottom: 14px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(148, 163, 184, 0.10);
+    border-radius: 10px;
+  }
+  .side-drawer-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .side-drawer-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .side-drawer-row .swatch {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+  .side-drawer-row.kbd-row-mini kbd {
+    font-size: 11px;
+    padding: 3px 7px;
+    min-width: 22px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(148, 163, 184, 0.20);
+    border-radius: 4px;
+    color: #cbd5e1;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    text-align: center;
+  }
+  .side-drawer-slider {
+    width: 100%;
+    height: 28px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .lang-toggle-drawer {
+    display: inline-flex;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 2px;
+    border-radius: 8px;
+  }
+  .lang-toggle-drawer .toggle-mini {
+    padding: 6px 12px;
+    font-size: 12px;
+    border: 0;
+    background: transparent;
+    color: var(--text-dim);
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lang-toggle-drawer .toggle-mini[aria-pressed="true"] {
+    background: var(--accent);
+    color: #0a0d18;
+    font-weight: 600;
+  }
+  .side-drawer-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: transparent;
+    border: 0;
+    padding: 0;
+  }
+  .side-drawer-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .side-drawer-btn:active { transform: scale(0.98); background: rgba(255, 255, 255, 0.10); }
+  .side-drawer-btn.primary {
+    background: var(--accent);
+    color: #0a0d18;
+    border-color: transparent;
+    font-weight: 600;
+  }
+  .side-drawer-btn.primary:active { background: #4db5f7; }
+  .side-drawer-btn svg { flex: 0 0 auto; }
+  .side-drawer-status {
+    margin-top: 12px;
+    min-height: 20px;
+    font-size: 13px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+  .side-drawer-status.show { opacity: 1; }
+  .side-drawer-status.ok   { color: var(--accent); }
+  .side-drawer-status.err  { color: #fca5a5; }
+
+  /* Drawer visibility: hidden on desktop, only shown on touch-mode
+   * ≤600px. The right column is also shown on those devices so the
+   * user has a "fallback" to scroll the right column if they
+   * prefer — but the primary entry point is the hamburger. */
+  @media (min-width: 601px) {
+    .side-drawer-toggle { display: none !important; }
+  }
+  @media (max-width: 600px) {
+    body.touch-mode .side-drawer-toggle { display: flex; }
   }
 
   /* ============================================================
@@ -1464,7 +1779,14 @@
            the app (see CONTRACT in the install script). The music
            button is hidden until the audio file has actually loaded
            (or definitely failed) so we never dangle an unplayable
-           affordance. -->
+           affordance.
+
+           MOBILE LAYOUT: on ≤600px the entire left column (Next /
+           Cleared / Score / share row / size slider) collapses into
+           a single horizontal `.hud-stats-row` that sits ABOVE the
+           board. Share / Install / Music are HIDDEN on mobile (they
+           move into the hamburger side drawer); only the 3 stats
+           show. The size slider is also moved to the drawer. -->
       <div class="mini-stat share-slot">
         <div class="action-row">
           <button id="share-btn" class="share-btn" type="button" aria-label="Share Idiom Tetris">
@@ -1508,6 +1830,28 @@
            the right-side Restart button (both bottom of each column). -->
       <div class="col-spacer" aria-hidden="true"></div>
     </aside>
+
+    <!-- MOBILE-ONLY horizontal stats row, shown only at ≤600px (via
+         CSS in the @media block). On desktop this row is `display:
+         none` and the user sees the original left column instead.
+         The 3 children reuse the same #next-canvas / #stat-cleared /
+         #stat-score nodes — we just re-layout them in flex order so
+         the data binding (game loop → stat-cleared / stat-score
+         innerText) works without duplication. -->
+    <div class="hud-stats-row" aria-label="Game stats (mobile)">
+      <div class="hud-stat">
+        <div class="hud-stat-label">Next</div>
+        <canvas id="next-canvas-mobile" width="96" height="48"></canvas>
+      </div>
+      <div class="hud-stat">
+        <div class="hud-stat-label">Cleared</div>
+        <div class="hud-stat-val" id="stat-cleared-mobile">0</div>
+      </div>
+      <div class="hud-stat">
+        <div class="hud-stat-label">Score</div>
+        <div class="hud-stat-val" id="stat-score-mobile">0</div>
+      </div>
+    </div>
 
     <div class="board-wrap">
       <canvas id="board" width="300" height="600"></canvas>
@@ -1589,6 +1933,111 @@
            so it visually balances the @ZHENG line. -->
       <div class="col-spacer" aria-hidden="true"></div>
     </aside>
+
+    <!-- Mobile-only hamburger side drawer. Hidden on desktop; only
+         shown on touch-mode ≤600px via CSS. The trigger button is
+         #side-drawer-toggle; tapping it opens .side-drawer, which
+         contains the buttons that used to live in the right
+         column (Types legend, Controls kbd, EN/中 toggle, pause
+         duration, install PWA, share, music). The left column
+         still shows NEXT/CLEARED/SCORE + the size slider, and the
+         drawer adds the rest on demand — no need to scroll. -->
+    <button id="side-drawer-toggle" class="side-drawer-toggle" type="button"
+            aria-label="More options" aria-expanded="false" aria-controls="side-drawer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="3" y1="6"  x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <div id="side-drawer" class="side-drawer" hidden aria-hidden="true">
+      <div class="side-drawer-backdrop" data-drawer-close></div>
+      <aside class="side-drawer-panel" role="dialog" aria-modal="true"
+             aria-label="Game options">
+        <div class="side-drawer-handle" aria-hidden="true"></div>
+        <button class="side-drawer-close" type="button"
+                data-drawer-close aria-label="Close">×</button>
+        <h3 class="side-drawer-title">More</h3>
+        <div class="side-drawer-section">
+          <div class="side-drawer-label">Types</div>
+          <div class="side-drawer-row">
+            <span class="swatch" style="background:var(--verb)"></span>
+            <span class="swatch" style="background:var(--det)"></span>
+            <span class="swatch" style="background:var(--noun)"></span>
+          </div>
+        </div>
+        <div class="side-drawer-section">
+          <div class="side-drawer-label">Controls</div>
+          <div class="side-drawer-row kbd-row-mini">
+            <kbd>←</kbd><kbd>→</kbd><kbd>↓</kbd>
+            <kbd>↑</kbd><kbd>␣</kbd><kbd>P</kbd>
+          </div>
+        </div>
+        <div class="side-drawer-section">
+          <div class="side-drawer-label">Meaning</div>
+          <div class="side-drawer-row">
+            <div class="lang-toggle lang-toggle-drawer" id="lang-toggle-drawer">
+              <button class="toggle-mini" id="btn-lang-en-drawer" aria-pressed="true"  type="button">EN</button>
+              <button class="toggle-mini" id="btn-lang-zh-drawer" aria-pressed="false" type="button">中</button>
+            </div>
+          </div>
+        </div>
+        <div class="side-drawer-section">
+          <div class="side-drawer-label">Modal</div>
+          <div class="side-drawer-row">
+            <div class="lang-toggle lang-toggle-drawer" id="pause-toggle-drawer">
+              <button class="toggle-mini" data-dur="1000" id="btn-pause-1-drawer"  aria-pressed="false" type="button">1s</button>
+              <button class="toggle-mini" data-dur="2500" id="btn-pause-25-drawer" aria-pressed="true"  type="button">2.5s</button>
+              <button class="toggle-mini" data-dur="5000" id="btn-pause-5-drawer"  aria-pressed="false" type="button">5s</button>
+              <button class="toggle-mini" data-dur="0"    id="btn-pause-manual-drawer" aria-pressed="false" type="button">∞</button>
+            </div>
+          </div>
+        </div>
+        <div class="side-drawer-section">
+          <div class="side-drawer-label">Size</div>
+          <div class="side-drawer-row">
+            <input type="range" id="board-size-slider-drawer" min="0.7" max="1.4" step="0.05"
+                   value="1" aria-label="Board size multiplier" class="side-drawer-slider">
+          </div>
+        </div>
+        <div class="side-drawer-section side-drawer-actions">
+          <button class="side-drawer-btn primary" id="share-btn-drawer" type="button" aria-label="Share">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="18" height="18">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/>
+            </svg>
+            Share
+          </button>
+          <button class="side-drawer-btn" id="ib-install-drawer" type="button" aria-label="Install">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="18" height="18">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Install
+          </button>
+          <button class="side-drawer-btn" id="music-btn-drawer" type="button" aria-label="Music">
+            <svg class="music-icon-on-drawer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="18" height="18">
+              <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+            </svg>
+            <svg class="music-icon-off-drawer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="18" height="18" style="display:none">
+              <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+              <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2.4"/>
+            </svg>
+            Music
+          </button>
+          <button class="side-drawer-btn" id="btn-view-lb-drawer" type="button" aria-label="Leaderboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="18" height="18">
+              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/>
+              <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+              <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+              <path d="M18 2H6v7a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4V2Z"/>
+            </svg>
+            Leaderboard
+          </button>
+        </div>
+        <div id="share-status-drawer" class="share-status side-drawer-status"></div>
+      </aside>
+    </div>
   </div>
 
   <!-- ============================================================
@@ -2065,7 +2514,12 @@ function drawCellOnCtx(c, type, word, x, y, size, alpha=1, ghost=false) {
   c.textAlign = 'center';
   c.textBaseline = 'middle';
   const targetWidth = ss - 5;
-  let fontSize = Math.floor(ss * 0.70);
+  /* Phone-friendly font ratio: 0.7×CELL was tuned for desktop where
+   * cell padding is generous. On mobile (CELL ≤ 32px) 0.7 leaves
+   * almost no breathing room and the halo strokes crowd the glyph.
+   * 0.55 keeps the word at ~55% of cell width with a clean
+   * 2-cell-height of vertical space for the multi-pass halo. */
+  let fontSize = Math.floor(ss * 0.55);
   const fontStack = '-apple-system, "Helvetica Neue", "Segoe UI", system-ui, sans-serif';
   c.font = `800 ${fontSize}px ${fontStack}`;
   while (c.measureText(word).width > targetWidth && fontSize > 8) {
@@ -2617,7 +3071,12 @@ function drawCell(type, word, x, y, size, alpha=1, ghost=false) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const targetWidth = ss - 5;
-  let fontSize = Math.floor(ss * 0.70);  // start large
+  /* Phone-friendly font ratio: 0.7×CELL was tuned for desktop where
+   * cell padding is generous. On mobile (CELL ≤ 32px) 0.7 leaves
+   * almost no breathing room and the halo strokes (fontSize × 0.18)
+   * crowd the glyph. 0.55 keeps the word at ~55% of cell width with
+   * a clean 2-cell-height of vertical space for the multi-pass halo. */
+  let fontSize = Math.floor(ss * 0.55);
   const fontStack = '-apple-system, "Helvetica Neue", "Segoe UI", system-ui, sans-serif';
   ctx.font = `800 ${fontSize}px ${fontStack}`;
   while (ctx.measureText(word).width > targetWidth && fontSize > 8) {
@@ -3435,6 +3894,225 @@ function initModals() {
   /* Side-panel "Leaderboard" button: opens the leaderboard modal
    * at any time (you don't have to die first). */
   $('btn-view-lb').addEventListener('click', () => showLeaderboard());
+
+  /* ============================================================
+   *  MOBILE — Side-drawer (the hamburger menu in the top-right of
+   *  the board on phones). Open/close the drawer, and route every
+   *  drawer button to the same handler the desktop right-column
+   *  button uses. We bind to `click` and forward to the original
+   *  element so all logic (PWA install contract, share card
+   *  generation, music on/off state, lang/pause toggles) stays
+   *  in one place. The drawer auto-closes after a button click
+   *  except for the lang/pause toggles, which are stateful and
+   *  more useful to leave open.
+   *  ============================================================ */
+  (function setupSideDrawer () {
+    var drawer  = document.getElementById('side-drawer');
+    var toggle  = document.getElementById('side-drawer-toggle');
+    if (!drawer || !toggle) return;
+
+    function openDrawer () {
+      drawer.removeAttribute('hidden');         /* HTML5 [hidden] = display:none, beats our CSS */
+      drawer.classList.add('open');
+      drawer.setAttribute('aria-hidden', 'false');
+      toggle.setAttribute('aria-expanded', 'true');
+    }
+    function closeDrawer () {
+      drawer.classList.remove('open');
+      drawer.setAttribute('aria-hidden', 'true');
+      drawer.setAttribute('hidden', '');         /* restore initial state */
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+    function toggleDrawer () {
+      drawer.classList.contains('open') ? closeDrawer() : openDrawer();
+    }
+    /* Expose globally so the share/install/music click handlers
+     * (which already exist for the right-column buttons) can call
+     * this when invoked from the drawer. */
+    window.__closeSideDrawer = closeDrawer;
+
+    toggle.addEventListener('click', toggleDrawer);
+
+    /* Tap backdrop / × to close. The backdrop has data-drawer-close,
+     * as does the × button — a single delegated listener catches both. */
+    drawer.addEventListener('click', function (e) {
+      if (e.target && e.target.hasAttribute && e.target.hasAttribute('data-drawer-close')) {
+        closeDrawer();
+      }
+    });
+    /* Swipe-right to close (touch ergonomics). Track the initial
+     * X position on the panel; if the user drags > 80px to the
+     * right with a fast enough motion, close. */
+    var panel = drawer.querySelector('.side-drawer-panel');
+    var startX = 0, startY = 0, lastX = 0, lastT = 0, tracking = false;
+    if (panel) {
+      panel.addEventListener('touchstart', function (e) {
+        if (!e.touches || !e.touches[0]) return;
+        var t = e.touches[0];
+        startX = t.clientX; lastX = t.clientX;
+        startY = t.clientY;
+        lastT = Date.now();
+        tracking = true;
+      }, { passive: true });
+      panel.addEventListener('touchmove', function (e) {
+        if (!tracking || !e.touches || !e.touches[0]) return;
+        var t = e.touches[0];
+        /* Reject if the user is scrolling vertically — that's a
+         * scroll, not a swipe-to-close. */
+        if (Math.abs(t.clientY - startY) > 30) { tracking = false; return; }
+        lastX = t.clientX; lastT = Date.now();
+      }, { passive: true });
+      panel.addEventListener('touchend', function () {
+        if (!tracking) return;
+        tracking = false;
+        var dx = lastX - startX;
+        var dt = Math.max(1, Date.now() - lastT);
+        /* 80px / under 500ms = deliberate swipe-right */
+        if (dx > 80 && dt < 500) closeDrawer();
+      }, { passive: true });
+    }
+
+    /* Route every action button in the drawer to the original
+     * handler. We synthesize a click() on the right-column button
+     * so all logic (state, contracts, error handling) stays put. */
+    function forward (drawerId, sourceId, autoClose) {
+      var d = document.getElementById(drawerId);
+      var s = document.getElementById(sourceId);
+      if (!d || !s) return;
+      d.addEventListener('click', function () {
+        s.click();
+        if (autoClose) closeDrawer();
+      });
+    }
+    forward('share-btn-drawer',     'share-btn',      true);
+    forward('ib-install-drawer',    'ib-install',     true);
+    forward('music-btn-drawer',     'music-btn',      true);
+    forward('btn-view-lb-drawer',   'btn-view-lb',    true);
+
+    /* Lang / pause toggles: forward too, but don't auto-close the
+     * drawer (these are stateful settings, useful to leave open
+     * so the user can see the active state change). The mirror
+     * listener below keeps the two groups in sync. */
+    function forwardEach (drawerGroupId, sourceGroupId) {
+      var drw = document.getElementById(drawerGroupId);
+      var src = document.getElementById(sourceGroupId);
+      if (!drw || !src) return;
+      var drwBtns = drw.querySelectorAll('button');
+      var srcBtns = src.querySelectorAll('button');
+      drwBtns.forEach(function (dBtn, i) {
+        if (!srcBtns[i]) return;
+        dBtn.addEventListener('click', function () { srcBtns[i].click(); });
+      });
+      srcBtns.forEach(function (sBtn, i) {
+        if (!drwBtns[i]) return;
+        sBtn.addEventListener('click', function () { drwBtns[i].click(); });
+      });
+    }
+    forwardEach('lang-toggle-drawer', 'lang-toggle');
+    forwardEach('pause-toggle-drawer', 'pause-toggle');
+
+    /* Lang toggle: just forward the click, drawer stays open so
+     * the user can see the EN/中 state change. The actual update
+     * lives in updateLangToggleUI which already gets called when
+     * the right-column toggle is clicked. To keep both toggles in
+     * sync, we hook a small mirror: after the original button
+     * processes the click, copy the aria-pressed values to the
+     * drawer toggles. */
+    function mirrorToggle (sourceGroupId, drawerGroupId, attr) {
+      var src = document.getElementById(sourceGroupId);
+      var drw = document.getElementById(drawerGroupId);
+      if (!src || !drw) return;
+      function sync () {
+        var srcBtns = src.querySelectorAll('[' + attr + ']');
+        var drwBtns = drw.querySelectorAll('[' + attr + ']');
+        srcBtns.forEach(function (b, i) {
+          if (drwBtns[i]) drwBtns[i].setAttribute(attr, b.getAttribute(attr));
+        });
+      }
+      /* Run in the BUBBLE phase so the original click handler
+       * (which mutates meaningLang / pauseDuration then calls
+       * updateLangToggleUI) has already updated the source
+       * aria-pressed by the time we read it. Capture phase would
+       * run too early and the mirror would lag by one click. */
+      src.addEventListener('click', sync, false);
+      /* Also mirror in the OTHER direction: when the user clicks
+       * a drawer button, forward the click to the source first,
+       * then re-sync. forward() handles the click forward; we
+       * just need to re-run sync after a microtask. */
+      drw.addEventListener('click', function () {
+        Promise.resolve().then(sync);
+      });
+      sync();
+    }
+    mirrorToggle('lang-toggle', 'lang-toggle-drawer', 'aria-pressed');
+    mirrorToggle('pause-toggle', 'pause-toggle-drawer', 'aria-pressed');
+
+    /* Board size slider mirror. The original slider is the
+     * desktop-side #board-size-slider; on mobile we expose
+     * #board-size-slider-drawer in the hamburger drawer. We
+     * keep both in sync: change either → the other mirrors. */
+    (function mirrorSizeSlider () {
+      var src = document.getElementById('board-size-slider');
+      var drw = document.getElementById('board-size-slider-drawer');
+      if (!src || !drw) return;
+      function sync (from) {
+        var to = (from === src) ? drw : src;
+        if (to.value !== from.value) to.value = from.value;
+      }
+      src.addEventListener('input', function () { sync(src); });
+      drw.addEventListener('input', function () { sync(drw); });
+    })();
+
+    /* Mobile stats row mirror. The horizontal `.hud-stats-row`
+     * only shows on ≤600px. The actual game-loop updates land
+     * on #stat-cleared / #stat-score (desktop) and the next-
+     * block canvas is redrawn via drawNext() (a global we don't
+     * touch). To keep the mobile numbers in sync without forking
+     * the game loop, we observe the desktop nodes with a tiny
+     * MutationObserver and copy textContent to the mobile twins.
+     * Cheap: at most a few changes per second, no allocations
+     * inside the hot path. */
+    (function mirrorStats () {
+      var pairs = [
+        ['stat-cleared', 'stat-cleared-mobile'],
+        ['stat-score',   'stat-score-mobile'],
+      ];
+      pairs.forEach(function (p) {
+        var src = document.getElementById(p[0]);
+        var drw = document.getElementById(p[1]);
+        if (!src || !drw) return;
+        // Initial sync
+        if (drw.textContent !== src.textContent) drw.textContent = src.textContent;
+        new MutationObserver(function () {
+          if (drw.textContent !== src.textContent) drw.textContent = src.textContent;
+        }).observe(src, { childList: true, characterData: true, subtree: true });
+      });
+
+      /* For the Next block, render into BOTH canvases whenever
+       * the existing drawNext() runs. drawNext is defined as a
+       * top-level function in the original codebase (NOT attached
+       * to window); we wrap it by replacing the global binding
+       * (works because the original drawNext was a `function`-decl
+       * hoisted onto the global). The wrapper calls the original
+       * and then draws the same pixels into the mobile canvas. */
+      var mobileNext = document.getElementById('next-canvas-mobile');
+      var desktopNext = document.getElementById('next-canvas');
+      if (mobileNext && desktopNext && typeof drawNext === 'function') {
+        var _origDrawNext = drawNext;
+        /* Re-assign the global by writing it onto the window. The
+         * function is auto-globalled by `function drawNext()` decl
+         * syntax in non-module scripts. */
+        drawNext = function () {
+          _origDrawNext.apply(this, arguments);
+          try {
+            var c = mobileNext.getContext('2d');
+            c.clearRect(0, 0, mobileNext.width, mobileNext.height);
+            c.drawImage(desktopNext, 0, 0, mobileNext.width, mobileNext.height);
+          } catch (e) { /* canvas tainted or not ready; ignore */ }
+        };
+      }
+    })();
+  })();
 
   /* Leaderboard modal: Enter on the name field submits. */
   $('lb-name').addEventListener('keydown', (e) => {
